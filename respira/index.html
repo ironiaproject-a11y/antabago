@@ -1,0 +1,855 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <title>Respira  Pare de Fumar com Apoio Real</title>
+  <meta name="description" content="Respira é o app que te ajuda a parar de fumar com suporte imediato, sem julgamento, no momento exato da vontade." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Outfit:wght@500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#08080A" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<!-- OFFLINE BANNER -->
+<div id="offline-banner" class="offline-banner">
+  <span>x Você está offline. Suas conquistas estão seguras localmente e serão sincronizadas quando você voltar a se conectar!</span>
+</div>
+
+<!-- SPLASH SCREEN -->
+<div id="screen-splash" class="screen active">
+  <div class="splash-bg">
+    <div class="aurora-blob"></div>
+    <div class="aurora-blob" style="animation-delay: -5s; left: 40%"></div>
+  </div>
+  <div class="splash-content">
+    <div class="logo-mark">
+      <svg width="100" height="100" viewBox="0 0 56 56" fill="none">
+        <circle cx="28" cy="28" r="27" stroke="url(#logoGrad)" stroke-width="2.5"/>
+        <path d="M28 18 C28 18 22 24 22 30 C22 33.3 24.7 36 28 36 C31.3 36 34 33.3 34 30 C34 24 28 18 28 18Z" fill="url(#logoGrad)" opacity="0.9"/>
+        <defs>
+          <linearGradient id="logoGrad" x1="0" y1="0" x2="56" y2="56">
+            <stop offset="0%" stop-color="var(--primary)"/>
+            <stop offset="100%" stop-color="var(--secondary)"/>
+          </linearGradient>
+        </defs>
+      </svg>
+    </div>
+    <h1 class="splash-title">respira</h1>
+    <p class="splash-sub">Sua jornada premium para uma vida livre</p>
+  </div>
+</div>
+
+<!-- LOADING SCREEN -->
+<div id="screen-loading" class="screen">
+  <div class="loading-wrap">
+    <div class="loading-spinner"></div>
+    <p class="loading-text">Carregando seus dados...</p>
+  </div>
+</div>
+
+<!-- LOGIN SCREEN -->
+<div id="screen-login" class="screen">
+  <div class="splash-bg">
+    <div class="aurora-blob"></div>
+    <div class="aurora-blob" style="animation-delay:-5s;left:40%"></div>
+  </div>
+  <div class="login-wrap">
+    <div class="login-logo">
+      <svg width="72" height="72" viewBox="0 0 56 56" fill="none">
+        <circle cx="28" cy="28" r="27" stroke="url(#loginGrad)" stroke-width="2.5"/>
+        <path d="M28 18 C28 18 22 24 22 30 C22 33.3 24.7 36 28 36 C31.3 36 34 33.3 34 30 C34 24 28 18 28 18Z" fill="url(#loginGrad)" opacity="0.9"/>
+        <defs>
+          <linearGradient id="loginGrad" x1="0" y1="0" x2="56" y2="56">
+            <stop offset="0%" stop-color="var(--primary)"/>
+            <stop offset="100%" stop-color="var(--secondary)"/>
+          </linearGradient>
+        </defs>
+      </svg>
+    </div>
+    <h1 class="login-title">respira</h1>
+    <p class="login-sub">Sua jornada para uma vida livre do cigarro</p>
+    <!-- Passo 1: E-mail -->
+    <div class="login-card" id="login-step-1">
+      <p class="login-desc">Digite seu e-mail para entrar  você receberá um código de 6 dígitos.</p>
+      <div class="login-email-wrap">
+        <input
+          type="email"
+          id="login-email"
+          class="login-email-input"
+          placeholder="seu@email.com"
+          autocomplete="email"
+          inputmode="email"
+          onkeydown="if(event.key==='Enter') sendOTP()"
+        />
+      </div>
+      <button class="btn-magic" id="btn-send-otp" onclick="sendOTP()">
+        <span>📨</span> Enviar código
+      </button>
+      <p class="login-privacy">Sem senha. Sem link. Só um código de 6 dígitos no seu e-mail.</p>
+    </div>
+
+    <!-- Passo 2: Código OTP -->
+    <div class="login-card" id="login-step-2" style="display:none">
+      <p class="login-desc" id="otp-desc">Digite o código de 6 dígitos enviado para <strong id="otp-email-display"></strong></p>
+      <div class="otp-input-wrap">
+        <input
+          type="number"
+          id="login-otp"
+          class="login-otp-input"
+          placeholder="000000"
+          inputmode="numeric"
+          maxlength="6"
+          onkeydown="if(event.key==='Enter') verifyOTP()"
+          oninput="if(this.value.length>6)this.value=this.value.slice(0,6)"
+        />
+      </div>
+      <button class="btn-magic" id="btn-verify-otp" onclick="verifyOTP()">
+        <span>✅</span> Confirmar código
+      </button>
+      <button class="btn-ghost" onclick="backToEmail()">  Usar outro e-mail</button>
+    </div>
+  </div>
+</div>
+
+<!-- ONBOARDING -->
+<div id="screen-onboarding" class="screen">
+  <div class="onboarding-wrap">
+    <div class="ob-step active" id="ob-0">
+      <div class="ob-visual">
+        <div class="ob-ring r1"></div>
+        <div class="ob-ring r2"></div>
+        <div class="ob-ring r3"></div>
+        <span class="ob-emoji">🤝</span>
+      </div>
+      <h2>Você não está sozinho nessa.</h2>
+      <p>O Respira está aqui para te ajudar <em>no momento exato</em> em que a vontade de fumar aparece sem julgamento, sem pressão.</p>
+      <button class="btn-primary" onclick="obNext()">Começar</button>
+    </div>
+    <div class="ob-step" id="ob-1">
+      <div class="ob-visual">
+        <div class="ob-icon-wrap"><span style="font-size:3rem">🎯</span></div>
+      </div>
+      <h2>Qual é seu maior desafio?</h2>
+      <div class="tag-grid" id="challenge-tags">
+        <button class="tag" onclick="selectTag(this)">Estresse</button>
+        <button class="tag" onclick="selectTag(this)">Ansiedade</button>
+        <button class="tag" onclick="selectTag(this)">Tédio</button>
+        <button class="tag" onclick="selectTag(this)">Café da manhã</button>
+        <button class="tag" onclick="selectTag(this)">Pós-refeição</button>
+        <button class="tag" onclick="selectTag(this)">Social</button>
+        <button class="tag" onclick="selectTag(this)">Trabalho</button>
+        <button class="tag" onclick="selectTag(this)">Álcool</button>
+      </div>
+      <button class="btn-primary" onclick="obNext()">Continuar</button>
+    </div>
+    <div class="ob-step" id="ob-2">
+      <div class="ob-visual">
+        <div class="ob-icon-wrap"><span style="font-size:3rem">💰</span></div>
+      </div>
+      <h2>Quanto você gasta por mês com cigarros?</h2>
+      <div class="input-group">
+        <label>Cigarros por dia</label>
+        <input type="number" id="cigs-per-day" placeholder="ex: 10" min="1" max="60" />
+      </div>
+      <div class="input-group">
+        <label>Preço do maço (R$)</label>
+        <input type="number" id="pack-price" placeholder="ex: 12" min="1" />
+      </div>
+      <button class="btn-primary" onclick="obNext()">Continuar</button>
+    </div>
+    <div class="ob-step" id="ob-3">
+      <div class="ob-visual">
+        <div class="ob-icon-wrap"><span style="font-size:3rem">❤️</span></div>
+      </div>
+      <h2>Por que você quer parar?</h2>
+      <textarea id="motivation" placeholder="Escreva seu motivo principal... Pode ser para seus filhos, sua saúde, seu futuro." rows="4"></textarea>
+      <div class="input-group">
+        <label>Seu nome</label>
+        <input type="text" id="user-name" placeholder="Como posso te chamar?" />
+      </div>
+      <button class="btn-primary" onclick="finishOnboarding()">Começar minha jornada</button>
+    </div>
+    <div class="ob-dots">
+      <div class="ob-dot active" id="dot-0"></div>
+      <div class="ob-dot" id="dot-1"></div>
+      <div class="ob-dot" id="dot-2"></div>
+      <div class="ob-dot" id="dot-3"></div>
+    </div>
+  </div>
+</div>
+
+<!-- HOME -->
+<div id="screen-home" class="screen">
+   <div class="home-wrap home-wrap-redesign">
+    <!-- Minimalist Header -->
+    <header class="home-header-minimal">
+      <button class="avatar-btn" onclick="navigate('profile')" aria-label="Perfil">
+        <div class="avatar-circle avatar-circle-sm">R</div>
+      </button>
+    </header>
+
+    <!-- Big Hero Orb Element in Center -->
+    <div class="hero-orb-section">
+      <div class="hero-orb-container" onclick="navigate('crisis')">
+        <div class="hero-glow"></div>
+        <div class="hero-sphere">
+          <div class="hero-sphere-inner"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Greeting Text -->
+    <div class="greeting-section">
+      <p class="greeting-kicker">Bem-vindo de volta</p>
+      <h2 class="greeting-title">
+        Como posso ajudar<br>você hoje?
+      </h2>
+    </div>
+
+    <!-- Topic Cards Section (Horizontal Scroll) -->
+    <div class="topic-cards-section">
+      <p class="topic-kicker">Selecione um tópico abaixo</p>
+      <div class="topic-cards-scroll">
+        <div class="topic-card bg-purple" onclick="navigate('coach')">
+          <div class="topic-icon-wrap">
+            <span class="topic-icon">🧠</span>
+          </div>
+          <div class="topic-card-footer">
+            <span class="topic-title">Falar com o<br>Coach IA</span>
+            <span class="topic-arrow">:</span>
+          </div>
+        </div>
+        <div class="topic-card bg-pink" onclick="navigate('progress')">
+          <div class="topic-icon-wrap">
+            <span class="topic-icon">📈</span>
+          </div>
+          <div class="topic-card-footer">
+            <span class="topic-title">Acompanhar<br>Progresso</span>
+            <span class="topic-arrow">:</span>
+          </div>
+        </div>
+        <div class="topic-card bg-blue" onclick="navigate('register')">
+          <div class="topic-icon-wrap">
+            <span class="topic-icon">🧠</span>
+          </div>
+          <div class="topic-card-footer">
+            <span class="topic-title">Registrar um<br>Cigarro</span>
+            <span class="topic-arrow">:</span>
+          </div>
+        </div>
+        <div class="topic-card bg-purple" onclick="navigate('milestones')">
+          <div class="topic-icon-wrap">
+            <span class="topic-icon">🧠</span>
+          </div>
+          <div class="topic-card-footer">
+            <span class="topic-title">Ver meus<br>Marcos</span>
+            <span class="topic-arrow">:</span>
+          </div>
+        </div>
+        <div class="topic-card bg-blue" onclick="navigate('buddy')">
+          <div class="topic-icon-wrap">
+            <span class="topic-icon">🧠</span>
+          </div>
+          <div class="topic-card-footer">
+            <span class="topic-title">Parceiro de<br>Jornada</span>
+            <span class="topic-arrow">:</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <nav class="bottom-nav">
+    <button class="nav-item active" onclick="navigate('home')" id="nav-home">
+      <span class="nav-icon">🏠</span><span class="nav-label">Início</span>
+    </button>
+    <button class="nav-item" onclick="navigate('progress')" id="nav-progress">
+      <span class="nav-icon">x`</span><span class="nav-label">Progresso</span>
+    </button>
+    <button class="nav-item" onclick="navigate('triggers')" id="nav-triggers">
+      <span class="nav-icon">🏠</span><span class="nav-label">Gatilhos</span>
+    </button>
+    <button class="nav-item" onclick="navigate('coach')" id="nav-coach">
+      <span class="nav-icon">🏠</span><span class="nav-label">Coach</span>
+    </button>
+    <button class="nav-item" onclick="navigate('profile')" id="nav-profile">
+      <span class="nav-icon">🏠</span><span class="nav-label">Perfil</span>
+    </button>
+  </nav>
+</div>
+
+<!-- CRISIS MODE -->
+<div id="screen-crisis" class="screen">
+  <div class="crisis-wrap">
+    <div class="crisis-bg-smoke">
+      <canvas id="crisis-canvas"></canvas>
+      <div class="smoke-wisp w1"></div>
+      <div class="smoke-wisp w2"></div>
+      <div class="smoke-wisp w3"></div>
+    </div>
+    <div class="crisis-header">
+      <button class="back-btn" onclick="navigate('home')"> </button>
+      <p class="crisis-header-label">Modo Crise</p>
+      <button class="audio-toggle-btn" id="audio-toggle-btn" onclick="toggleCrisisAudio()" title="Ativar/desativar sons">x`</button>
+    </div>
+
+    <div class="breathe-circle" id="breathe-circle">
+      <!-- SVG Progress Ring -->
+      <svg class="breathe-svg" width="280" height="280">
+        <circle class="breathe-track-ring" cx="140" cy="140" r="125" />
+        <circle class="breathe-progress-ring" id="breathe-progress" cx="140" cy="140" r="125" />
+      </svg>
+      <div class="breathe-ring br1"></div>
+      <div class="breathe-ring br2"></div>
+      <div class="breathe-core">
+        <div class="breathe-text-wrap">
+          <span id="breathe-label">Respire</span>
+          <span id="breathe-timer">4</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="crisis-chat" id="crisis-chat">
+      <div class="chat-bubble ai">
+        <p>Ei, estou aqui. Você fez a coisa certa vindo aqui. Vamos atravessar isso juntos.</p>
+      </div>
+      <div class="chat-bubble ai">
+        <p>De <strong>0 a 10</strong>, quão forte está a vontade agora?</p>
+      </div>
+      <div class="crisis-options" id="crisis-step-1">
+        <div class="intensity-row">
+          <button class="int-btn" onclick="selectIntensity(this, 1)">1</button>
+          <button class="int-btn" onclick="selectIntensity(this, 2)">2</button>
+          <button class="int-btn" onclick="selectIntensity(this, 3)">3</button>
+          <button class="int-btn" onclick="selectIntensity(this, 4)">4</button>
+          <button class="int-btn" onclick="selectIntensity(this, 5)">5</button>
+          <button class="int-btn" onclick="selectIntensity(this, 6)">6</button>
+          <button class="int-btn" onclick="selectIntensity(this, 7)">7</button>
+          <button class="int-btn" onclick="selectIntensity(this, 8)">8</button>
+          <button class="int-btn" onclick="selectIntensity(this, 9)">9</button>
+          <button class="int-btn" onclick="selectIntensity(this, 10)">10</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI CHAT INPUT -->
+    <div class="ai-input-bar" id="ai-input-bar" style="display:none">
+      <input type="text" id="ai-user-input" placeholder="Escreva o que está sentindo..." onkeydown="if(event.key==='Enter')sendAIMessage()" />
+      <button class="ai-send-btn" onclick="sendAIMessage()" id="ai-send-btn">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M22 2L11 13" stroke="white" stroke-width="2" stroke-linecap="round"/><path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+
+    <div class="crisis-footer" id="crisis-footer" style="display:none">
+      <button class="btn-success" onclick="crisisWon()">S& Eu consegui passar por isso</button>
+      <button class="btn-ghost" onclick="navigate('relapse')">Registrar recaída sem culpa</button>
+    </div>
+  </div>
+</div>
+
+<!-- REGISTER TRIGGER -->
+<div id="screen-register" class="screen">
+  <div class="screen-wrap">
+    <div class="screen-header">
+      <button class="back-btn" onclick="navigate('home')"> </button>
+      <h2>Registrar cigarro</h2>
+    </div>
+    <div class="form-section">
+      <label class="form-label">Como foi a vontade?</label>
+      <div class="intensity-display">
+        <input type="range" min="1" max="10" value="5" id="reg-intensity" class="slider" oninput="updateIntensityDisplay(this.value)" />
+        <div class="intensity-val" id="reg-intensity-val">5 / 10</div>
+      </div>
+
+      <label class="form-label">Onde você estava?</label>
+      <div class="tag-grid">
+        <button class="tag" onclick="selectTag(this)" data-group="location">Em casa</button>
+        <button class="tag" onclick="selectTag(this)" data-group="location">No trabalho</button>
+        <button class="tag" onclick="selectTag(this)" data-group="location">Na rua</button>
+        <button class="tag" onclick="selectTag(this)" data-group="location">No carro</button>
+        <button class="tag" onclick="selectTag(this)" data-group="location">Bar/Restaurante</button>
+        <button class="tag" onclick="selectTag(this)" data-group="location">Outro</button>
+      </div>
+
+      <label class="form-label">O que desencadeou?</label>
+      <div class="tag-grid">
+        <button class="tag" onclick="selectTag(this)" data-group="trigger">Estresse</button>
+        <button class="tag" onclick="selectTag(this)" data-group="trigger">Café</button>
+        <button class="tag" onclick="selectTag(this)" data-group="trigger">Pós-refeição</button>
+        <button class="tag" onclick="selectTag(this)" data-group="trigger">Tédio</button>
+        <button class="tag" onclick="selectTag(this)" data-group="trigger">Ansiedade</button>
+        <button class="tag" onclick="selectTag(this)" data-group="trigger">Álcool</button>
+        <button class="tag" onclick="selectTag(this)" data-group="trigger">Social</button>
+        <button class="tag" onclick="selectTag(this)" data-group="trigger">Briga</button>
+        <button class="tag" onclick="selectTag(this)" data-group="trigger">Cansaço</button>
+        <button class="tag" onclick="selectTag(this)" data-group="trigger">Rotina</button>
+      </div>
+
+      <label class="form-label">Você fumou?</label>
+      <div class="yes-no-row">
+        <button class="yn-btn yn-yes" id="yn-yes" onclick="setSmoked(true)">Sim, fumei</button>
+        <button class="yn-btn yn-no" id="yn-no" onclick="setSmoked(false)">Não fumei</button>
+      </div>
+
+      <label class="form-label">Observação (opcional)</label>
+      <textarea placeholder="O que você estava sentindo..." id="reg-note" rows="3"></textarea>
+
+      <button class="btn-primary" onclick="saveRegister()">Salvar registro</button>
+    </div>
+  </div>
+</div>
+
+<!-- RELAPSE SCREEN -->
+<div id="screen-relapse" class="screen">
+  <div class="screen-wrap relapse-wrap">
+    <div class="relapse-heart">x"</div>
+    <h2 class="relapse-title">Tudo bem.</h2>
+    <p class="relapse-msg">Uma recaída não apaga seu progresso. Vamos entender o que aconteceu e usar isso para te proteger melhor da próxima vez.</p>
+    <div class="relapse-card">
+      <p>O que aconteceu antes de fumar?</p>
+      <div class="tag-grid">
+        <button class="tag" onclick="selectTag(this)">Estresse</button>
+        <button class="tag" onclick="selectTag(this)">Social</button>
+        <button class="tag" onclick="selectTag(this)">Tédio</button>
+        <button class="tag" onclick="selectTag(this)">Ansiedade</button>
+        <button class="tag" onclick="selectTag(this)">Álcool</button>
+        <button class="tag" onclick="selectTag(this)">Impulso</button>
+      </div>
+    </div>
+    <button class="btn-primary" onclick="saveRelapse()">Registrar e continuar</button>
+    <button class="btn-ghost" onclick="navigate('home')">Voltar ao início</button>
+  </div>
+</div>
+
+<!-- PROGRESS -->
+<div id="screen-progress" class="screen">
+  <div class="screen-wrap">
+    <div class="screen-header">
+      <button class="back-btn" onclick="navigate('home')"> </button>
+      <h2>Meu Progresso</h2>
+    </div>
+
+    <div class="progress-hero">
+      <div class="lung-circle" id="lung-circle">
+        <svg class="lung-svg" viewBox="0 0 200 200">
+          <circle cx="100" cy="100" r="88" fill="none" stroke="#1a1a1a" stroke-width="12"/>
+          <circle cx="100" cy="100" r="88" fill="none" stroke="url(#progressGrad)" stroke-width="12"
+            stroke-dasharray="553" stroke-dashoffset="553" stroke-linecap="round"
+            class="progress-ring" id="progress-ring" transform="rotate(-90 100 100)"/>
+          <defs>
+            <linearGradient id="progressGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#E85D3A"/>
+              <stop offset="100%" stop-color="#F5A623"/>
+            </linearGradient>
+          </defs>
+        </svg>
+        <div class="lung-center">
+          <div class="lung-pct" id="lung-pct">0%</div>
+          <div class="lung-lbl">Pulmão</div>
+          <div class="lung-sublbl">recuperado</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="progress-stats">
+      <div class="stat-row">
+        <div class="stat-item">
+          <div class="stat-val" id="p-days">0</div>
+          <div class="stat-lbl">Dias livres</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-val" id="p-crises">0</div>
+          <div class="stat-lbl">Crises vencidas</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-val" id="p-money">R$0</div>
+          <div class="stat-lbl">Economizado</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="milestones">
+      <h3>Marcos de conquista</h3>
+      <div class="milestone-list" id="milestone-list"></div>
+    </div>
+
+    <div class="streak-section">
+      <h3>Sequência de dias</h3>
+      <div class="streak-grid" id="streak-grid"></div>
+    </div>
+
+    <div class="evolution-section">
+      <h3>Evolução - 14 dias</h3>
+      <div class="evolution-chart-legend">
+        <span class="evo-legend win"> Vitórias</span>
+        <span class="evo-legend fail"> Recaídas</span>
+      </div>
+      <div class="evolution-chart" id="evolution-chart"></div>
+    </div>
+
+    <div class="badges-section">
+      <h3>Conquistas</h3>
+      <div class="badges-grid" id="badges-grid"></div>
+    </div>
+
+    <button class="btn-share" onclick="shareProgress()">
+      <span>x</span> Compartilhar meu progresso
+    </button>
+  </div>
+  <nav class="bottom-nav">
+    <button class="nav-item" onclick="navigate('home')" id="nav-home2"><span class="nav-icon">🏠</span><span class="nav-label">Início</span></button>
+    <button class="nav-item active" onclick="navigate('progress')" id="nav-progress2"><span class="nav-icon">x`</span><span class="nav-label">Progresso</span></button>
+    <button class="nav-item" onclick="navigate('triggers')" id="nav-triggers2"><span class="nav-icon">🏠</span><span class="nav-label">Gatilhos</span></button>
+    <button class="nav-item" onclick="navigate('coach')" id="nav-coach2"><span class="nav-icon">🏠</span><span class="nav-label">Coach</span></button>
+    <button class="nav-item" onclick="navigate('profile')" id="nav-profile2"><span class="nav-icon">🏠</span><span class="nav-label">Perfil</span></button>
+  </nav>
+</div>
+
+<!-- TRIGGERS MAP -->
+<div id="screen-triggers" class="screen">
+  <div class="screen-wrap">
+    <div class="screen-header">
+      <button class="back-btn" onclick="navigate('home')"> </button>
+      <h2>Mapa de Gatilhos</h2>
+    </div>
+
+    <div class="heatmap-section">
+      <h3>Horários críticos</h3>
+      <div class="heatmap" id="heatmap"></div>
+      <div class="heatmap-legend">
+        <span class="legend-low">Baixo</span>
+        <div class="legend-bar"></div>
+        <span class="legend-high">Alto</span>
+      </div>
+    </div>
+
+    <div class="trigger-chart-section">
+      <h3>Gatilhos mais frequentes</h3>
+      <div class="trigger-bars" id="trigger-bars"></div>
+    </div>
+
+    <div class="insights-section">
+      <h3>Padrões identificados</h3>
+      <div class="pattern-list" id="pattern-list">
+        <div class="pattern-item">
+          <span class="pattern-icon">"</span>
+          <div class="pattern-text">
+            <strong>Café da manhã</strong>
+            <p>Risco elevado entre 7h9h</p>
+          </div>
+          <span class="pattern-risk high">Alto</span>
+        </div>
+        <div class="pattern-item">
+          <span class="pattern-icon">x</span>
+          <div class="pattern-text">
+            <strong>Pós-almoço</strong>
+            <p>Recaídas frequentes às 13h</p>
+          </div>
+          <span class="pattern-risk medium">Médio</span>
+        </div>
+        <div class="pattern-item">
+          <span class="pattern-icon">xR"</span>
+          <div class="pattern-text">
+            <strong>Fim do dia</strong>
+            <p>Estresse acumulado às 18h</p>
+          </div>
+          <span class="pattern-risk medium">Médio</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <nav class="bottom-nav">
+    <button class="nav-item" onclick="navigate('home')"><span class="nav-icon">🏠</span><span class="nav-label">Início</span></button>
+    <button class="nav-item" onclick="navigate('progress')"><span class="nav-icon">x`</span><span class="nav-label">Progresso</span></button>
+    <button class="nav-item active" onclick="navigate('triggers')"><span class="nav-icon">🏠</span><span class="nav-label">Gatilhos</span></button>
+    <button class="nav-item" onclick="navigate('coach')"><span class="nav-icon">🏠</span><span class="nav-label">Coach</span></button>
+    <button class="nav-item" onclick="navigate('profile')"><span class="nav-icon">🏠</span><span class="nav-label">Perfil</span></button>
+  </nav>
+</div>
+
+<!-- HISTORY -->
+<div id="screen-history" class="screen">
+  <div class="screen-wrap">
+    <div class="screen-header">
+      <button class="back-btn" onclick="navigate('home')"> </button>
+      <h2>Histórico</h2>
+    </div>
+    <div class="history-list" id="history-list">
+      <div class="empty-state">
+        <span class="empty-icon">x</span>
+        <p>Nenhum registro ainda. Comece registrando um momento de crise ou cigarro.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PROFILE -->
+<div id="screen-profile" class="screen">
+  <div class="screen-wrap">
+    <div class="screen-header">
+      <button class="back-btn" onclick="navigate('home')"> </button>
+      <h2>Meu Perfil</h2>
+      <button class="logout-btn" onclick="doSignOut()" title="Sair da conta"> </button>
+    </div>
+    <div class="profile-avatar-section">
+      <div class="profile-avatar" id="profile-avatar">R</div>
+      <h3 id="profile-name-display">Amigo</h3>
+      <p class="profile-sub" id="profile-sub">Em jornada há 0 dias</p>
+      <p class="profile-email" id="profile-email"></p>
+    </div>
+    <div class="profile-motive-card">
+      <p class="pm-label">Meu motivo para parar</p>
+      <p class="pm-text" id="profile-motive"></p>
+    </div>
+    <div id="notif-banner-profile" class="notif-banner" style="display:none" onclick="requestNotifPermission()">
+      <span class="nb-icon">x</span>
+      <div class="nb-text">
+        <strong>Ative os lembretes diários</strong>
+        <p>Receba um toque de apoio todo dia para manter o foco.</p>
+      </div>
+      <button class="nb-btn" onclick="event.stopPropagation(); requestNotifPermission()">Ativar</button>
+    </div>
+
+    <div class="settings-list">
+      <div class="settings-item">
+        <span class="si-icon">x</span>
+        <span class="si-label">Notificações diárias</span>
+        <label class="toggle"><input type="checkbox" id="notif-toggle" onchange="toggleNotifications(this.checked)" /><span class="toggle-slider"></span></label>
+      </div>
+      <div class="settings-item">
+        <span class="si-icon">x"</span>
+        <span class="si-label">Horário de lembrete</span>
+        <input type="time" class="time-input" id="wake-time" value="07:00" onchange="saveWakeTime(this.value)" />
+      </div>
+      <div class="settings-item" onclick="openEditModal()">
+        <span class="si-icon">S</span>
+        <span class="si-label">Editar perfil</span>
+        <span class="si-arrow">:</span>
+      </div>
+      <div class="settings-item" onclick="exportData()">
+        <span class="si-icon">x</span>
+        <span class="si-label">Exportar backup</span>
+        <span class="si-arrow">:</span>
+      </div>
+      <div class="settings-item" onclick="document.getElementById('import-file').click()">
+        <span class="si-icon">x</span>
+        <span class="si-label">Restaurar backup</span>
+        <span class="si-arrow">:</span>
+      </div>
+      <div class="settings-item" onclick="resetApp()">
+        <span class="si-icon">x</span>
+        <span class="si-label">Reiniciar jornada</span>
+        <span class="si-arrow">:</span>
+      </div>
+    </div>
+    <div class="support-card">
+      <p class="support-title">Contato de apoio</p>
+      <input class="support-input" type="text" placeholder="Nome do seu contato" id="support-name" />
+      <input class="support-input" type="tel" placeholder="Telefone ou WhatsApp (ex: 5511999...)" id="support-phone" />
+      <button class="btn-outline" onclick="saveSupport()">Salvar contato</button>
+      <div class="support-actions" id="support-actions" style="display:none">
+        <button class="btn-whatsapp" onclick="openWhatsApp()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.127.558 4.121 1.532 5.851L0 24l6.318-1.505A11.95 11.95 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.804 9.804 0 01-5.001-1.367l-.36-.214-3.75.893.943-3.644-.234-.374A9.799 9.799 0 012.182 12C2.182 6.58 6.58 2.182 12 2.182S21.818 6.58 21.818 12 17.42 21.818 12 21.818z"/></svg>
+          WhatsApp
+        </button>
+        <button class="btn-call" onclick="callSupport()">
+          x~ Ligar
+        </button>
+      </div>
+    </div>
+
+    <!-- AI CONFIG CARD -->
+    <div class="ai-config-card">
+      <div class="ai-config-header">
+        <div class="ai-badge">IA</div>
+        <div>
+          <p class="ai-config-title">Provedor do Coach de IA</p>
+          <p class="ai-config-sub">Selecione o modelo de inteligência artificial que deseja usar no Modo Crise.</p>
+        </div>
+      </div>
+
+      <div class="ai-provider-selector">
+        <button class="provider-btn selected" id="prov-groq" onclick="selectProvider('groq')">Groq (Llama 3)</button>
+        <button class="provider-btn" id="prov-gemini" onclick="selectProvider('gemini')">Google Gemini</button>
+        <button class="provider-btn" id="prov-openai" onclick="selectProvider('openai')">OpenAI</button>
+      </div>
+
+      <div class="ai-status" id="ai-status">IA ativa via servidor</div>
+    </div>
+  </div>
+  <nav class="bottom-nav">
+    <button class="nav-item" onclick="navigate('home')"><span class="nav-icon">🏠</span><span class="nav-label">Início</span></button>
+    <button class="nav-item" onclick="navigate('progress')"><span class="nav-icon">x`</span><span class="nav-label">Progresso</span></button>
+    <button class="nav-item" onclick="navigate('triggers')"><span class="nav-icon">🏠</span><span class="nav-label">Gatilhos</span></button>
+    <button class="nav-item" onclick="navigate('coach')"><span class="nav-icon">🏠</span><span class="nav-label">Coach</span></button>
+    <button class="nav-item active" onclick="navigate('profile')"><span class="nav-icon">🏠</span><span class="nav-label">Perfil</span></button>
+  </nav>
+</div>
+
+<!-- COACH SCREEN -->
+<div id="screen-coach" class="screen">
+  <div class="screen-wrap" style="display:flex; flex-direction:column; height:100vh; padding: 24px 24px 140px;">
+    <div class="screen-header" style="margin-bottom: 16px; flex-shrink:0;">
+      <button class="back-btn" onclick="navigate('home')"> </button>
+      <h2 style="font-size:1.3rem; margin:0;">Coach Respira S</h2>
+      <div class="header-spacer"></div>
+    </div>
+    <div class="crisis-chat" id="coach-chat" style="flex:1; padding-bottom: 8px;">
+      <div class="chat-bubble ai">
+        <p>Olá! Eu sou o seu Coach. Estou aqui para conversar, te motivar ou apenas te ouvir. Sobre o que quer falar hoje?</p>
+      </div>
+    </div>
+  </div>
+  <div class="ai-input-bar" style="bottom: 70px; z-index: 35;">
+    <input type="text" id="coach-user-input" placeholder="Escreva sua mensagem..." onkeydown="if(event.key==='Enter')sendCoachMessage()" />
+    <button class="ai-send-btn" onclick="sendCoachMessage()" id="coach-send-btn">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M22 2L11 13" stroke="white" stroke-width="2" stroke-linecap="round"/><path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+  </div>
+  <nav class="bottom-nav">
+    <button class="nav-item" onclick="navigate('home')"><span class="nav-icon">🏠</span><span class="nav-label">Início</span></button>
+    <button class="nav-item" onclick="navigate('progress')"><span class="nav-icon">x`</span><span class="nav-label">Progresso</span></button>
+    <button class="nav-item" onclick="navigate('triggers')"><span class="nav-icon">🏠</span><span class="nav-label">Gatilhos</span></button>
+    <button class="nav-item active" onclick="navigate('coach')"><span class="nav-icon">🏠</span><span class="nav-label">Coach</span></button>
+    <button class="nav-item" onclick="navigate('profile')"><span class="nav-icon">🏠</span><span class="nav-label">Perfil</span></button>
+  </nav>
+</div>
+
+<!-- MILESTONES SCREEN -->
+<div id="screen-milestones" class="screen">
+  <div class="screen-wrap">
+    <div class="screen-header">
+      <button class="back-btn" onclick="navigate('home')"> </button>
+      <h2>Marcos do Corpo</h2>
+      <div class="header-spacer"></div>
+    </div>
+
+    <div class="progress-stats milestone-header-box">
+      <p class="mini-label">Tempo total sem fumar</p>
+      <h3 id="ms-total-time" class="milestone-total-time">0d 0h 0m</h3>
+      <div class="milestone-progress-wrap">
+        <div class="milestone-progress-track">
+          <div id="ms-next-progress-fill" class="milestone-progress-fill" style="width:0%"></div>
+        </div>
+        <span id="ms-next-progress-label">0%</span>
+      </div>
+    </div>
+
+    <div id="ms-next-card" class="milestone-next-card"></div>
+    <div id="ms-category-filter" class="category-filter-row"></div>
+    <div id="ms-list" class="milestone-list-advanced"></div>
+  </div>
+  <nav class="bottom-nav">
+    <button class="nav-item" onclick="navigate('home')"><span class="nav-icon">🏠</span><span class="nav-label">Início</span></button>
+    <button class="nav-item" onclick="navigate('progress')"><span class="nav-icon">x`</span><span class="nav-label">Progresso</span></button>
+    <button class="nav-item active" onclick="navigate('milestones')"><span class="nav-icon">🏠</span><span class="nav-label">Marcos</span></button>
+    <button class="nav-item" onclick="navigate('coach')"><span class="nav-icon">🏠</span><span class="nav-label">Coach</span></button>
+    <button class="nav-item" onclick="navigate('profile')"><span class="nav-icon">🏠</span><span class="nav-label">Perfil</span></button>
+  </nav>
+</div>
+
+<!-- BUDDY SCREEN -->
+<div id="screen-buddy" class="screen">
+  <div class="screen-wrap">
+    <div class="screen-header">
+      <button class="back-btn" onclick="navigate('home')"> </button>
+      <h2>Parceiro de Jornada</h2>
+      <div class="header-spacer"></div>
+    </div>
+    <div id="buddy-root"></div>
+  </div>
+  <nav class="bottom-nav">
+    <button class="nav-item" onclick="navigate('home')"><span class="nav-icon">🏠</span><span class="nav-label">Início</span></button>
+    <button class="nav-item" onclick="navigate('progress')"><span class="nav-icon">x`</span><span class="nav-label">Progresso</span></button>
+    <button class="nav-item active" onclick="navigate('buddy')"><span class="nav-icon">🏠</span><span class="nav-label">Parceiro</span></button>
+    <button class="nav-item" onclick="navigate('coach')"><span class="nav-icon">🏠</span><span class="nav-label">Coach</span></button>
+    <button class="nav-item" onclick="navigate('profile')"><span class="nav-icon">🏠</span><span class="nav-label">Perfil</span></button>
+  </nav>
+</div>
+
+<!-- TOAST -->
+<div id="toast" class="toast"></div>
+
+<!-- PARTICLE BURST -->
+<div id="particles" class="particles-container"></div>
+
+<!-- IMPORT FILE (hidden) -->
+<input type="file" id="import-file" accept=".json" style="display:none" onchange="importData(this)">
+
+<!-- BADGE UNLOCK OVERLAY -->
+<div class="badge-overlay" id="badge-overlay">
+  <div class="badge-reveal-card">
+    <div class="badge-reveal-shine"></div>
+    <p class="badge-reveal-label">x}0 Conquista desbloqueada!</p>
+    <div class="badge-unlock-icon" id="badge-unlock-icon">x </div>
+    <h3 class="badge-unlock-title" id="badge-unlock-title">Título</h3>
+    <p class="badge-unlock-desc" id="badge-unlock-desc">Descrição</p>
+  </div>
+</div>
+
+<!-- MODAL EDITAR PERFIL -->
+<div class="modal-overlay" id="edit-modal" onclick="handleModalBackdrop(event)">
+  <div class="modal-sheet" style="position:relative">
+    <div class="modal-handle"></div>
+    <button class="modal-close-btn" onclick="closeEditModal()">S"</button>
+    <h2 class="modal-title">S Editar Perfil</h2>
+
+    <div class="modal-field">
+      <label>Seu nome</label>
+      <input type="text" id="edit-name" placeholder="Como posso te chamar?" />
+    </div>
+
+    <div class="modal-field">
+      <label>Meu motivo para parar</label>
+      <textarea id="edit-motive" rows="3" placeholder="Para minha saúde, minha família..."></textarea>
+    </div>
+
+    <div class="modal-row">
+      <div class="modal-field">
+        <label>Cigarros / dia</label>
+        <input type="number" id="edit-cigs" min="1" max="60" />
+      </div>
+      <div class="modal-field">
+        <label>Preço do maço (R$)</label>
+        <input type="number" id="edit-price" min="1" step="0.5" />
+      </div>
+    </div>
+
+    <button class="btn-primary" onclick="saveEditModal()">Salvar alterações</button>
+  </div>
+</div>
+
+<!-- MODAL MILESTONE -->
+<div class="modal-overlay" id="milestone-modal" onclick="handleMilestoneModalBackdrop(event)">
+  <div class="modal-sheet" style="position:relative">
+    <div class="modal-handle"></div>
+    <button class="modal-close-btn" onclick="closeMilestoneModal()">S"</button>
+    <h2 class="modal-title" id="milestone-modal-title">Marco</h2>
+    <p id="milestone-modal-body"></p>
+    <p class="mini-label" style="margin-top:14px">Conquistado em:</p>
+    <p id="milestone-modal-date"></p>
+  </div>
+</div>
+
+<div class="badge-overlay" id="milestone-celebration-overlay">
+  <div class="badge-reveal-card">
+    <p class="badge-reveal-label">x}0 Novo marco atingido!</p>
+    <div class="badge-unlock-icon" id="milestone-celebration-icon">x</div>
+    <h3 class="badge-unlock-title" id="milestone-celebration-title">Marco</h3>
+    <p class="badge-unlock-desc" id="milestone-celebration-body"></p>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="supabase.js"></script>
+<script src="milestones.js"></script>
+<script src="app.js"></script>
+<script src="buddy.js"></script>
+</body>
+</html>
+
+
+

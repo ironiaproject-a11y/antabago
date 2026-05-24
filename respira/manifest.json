@@ -1,0 +1,17 @@
+{
+  "name": "Respira — Pare de Fumar",
+  "short_name": "Respira",
+  "description": "Seu coach pessoal para parar de fumar com apoio de IA.",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#08080A",
+  "theme_color": "#FF5E5E",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3209/3209865.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
