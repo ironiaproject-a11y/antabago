@@ -194,11 +194,22 @@
 
     <!-- Big Hero Orb Element in Center -->
     <div class="hero-orb-section">
-      <div class="hero-orb-container" onclick="navigate('crisis')">
+      <div class="hero-orb-container" id="hero-orb" onclick="navigate('crisis')" role="button" aria-label="Abrir modo de respiração">
+        <div class="hero-ambient"></div>
         <div class="hero-glow"></div>
+        <div class="hero-orbit hero-orbit-1"></div>
+        <div class="hero-orbit hero-orbit-2"></div>
         <div class="hero-sphere">
-          <div class="hero-sphere-inner"></div>
+          <div class="hero-aura hero-aura-1"></div>
+          <div class="hero-aura hero-aura-2"></div>
+          <div class="hero-noise"></div>
+          <div class="hero-sphere-inner">
+            <div class="hero-core"></div>
+            <div class="hero-vapor"></div>
+            <div class="hero-highlight"></div>
+          </div>
         </div>
+        <div class="hero-phase" id="hero-orb-phase">respire</div>
       </div>
     </div>
 

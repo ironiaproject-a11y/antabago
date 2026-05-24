@@ -23,7 +23,8 @@ let state = {
   attemptsHistory: [],
   milestoneCategoryFilter: 'all',
   milestoneIntroSeen: false,
-  lastRelapseDays: 0
+  lastRelapseDays: 0,
+  orbCalmScore: 0.3
 };
 
 // 
@@ -33,6 +34,7 @@ let aiConversation = []; // hist�rico da sess�o de crise
 let aiTyping = false;
 let milestoneMinuteTimer = null;
 let milestoneTimeouts = [];
+let heroOrbEngine = null;
 
 //  Proxy URL  Edge Function do Supabase 
 // A chave da IA fica NO SERVIDOR (vari�vel de ambiente do Supabase).
@@ -48,6 +50,7 @@ function hasAI() {
 // 
 document.addEventListener('DOMContentLoaded', () => {
   showScreen('loading');
+  initHeroOrb();
 
   initFirebase(async (user) => {
     if (!user) {
@@ -181,6 +184,201 @@ function animateHomeEntrance() {
       delay += 80;
     });
   });
+}
+
+function initHeroOrb() {
+  const orb = document.getElementById('hero-orb');
+  const phaseLabel = document.getElementById('hero-orb-phase');
+  if (!orb || !phaseLabel || heroOrbEngine) return;
+
+  const phases = {
+    idle: { id: 'idle', label: 'respire', duration: 2800 },
+    inhale: { id: 'inhale', label: 'segure e inspire', duration: 4200 },
+    hold: { id: 'hold', label: 'mantenha', duration: 1700 },
+    exhale: { id: 'exhale', label: 'solte devagar', duration: 4600 },
+    recover: { id: 'recover', label: 'retome o ritmo', duration: 1800 }
+  };
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+  const persistedCalm = clamp(Number(state.orbCalmScore || 0.3), 0, 1);
+  const engine = {
+    phase: phases.idle,
+    phaseStart: performance.now(),
+    press: 0,
+    breath: 0.48,
+    chaos: clamp(0.74 - persistedCalm * 0.44, 0.14, 0.84),
+    progress: clamp(0.14 + persistedCalm * 0.72, 0.08, 0.96),
+    calm: persistedCalm,
+    cycleQuality: 0,
+    cycleCount: 0,
+    pointerId: null,
+    pointerDownAt: 0,
+    angle: 0,
+    prevAngle: 0,
+    orbitInfluence: 0,
+    orbitValue: 0,
+    hintTimeout: null,
+    lastPersistAt: 0
+  };
+  heroOrbEngine = engine;
+
+  const setPhase = phase => {
+    engine.phase = phase;
+    engine.phaseStart = performance.now();
+    orb.dataset.phase = phase.id;
+    phaseLabel.textContent = phase.label;
+  };
+
+  const nudgeCalm = amount => {
+    engine.calm = clamp(engine.calm + amount, 0, 1);
+    engine.progress = clamp(engine.progress + amount * 0.72, 0.1, 1);
+    engine.chaos = clamp(engine.chaos - amount * 0.8, 0.08, 0.84);
+  };
+
+  const phasePulse = pattern => {
+    if (navigator.vibrate) navigator.vibrate(pattern);
+  };
+
+  const persistCalm = () => {
+    const now = Date.now();
+    if (now - engine.lastPersistAt < 5000) return;
+    engine.lastPersistAt = now;
+    state.orbCalmScore = clamp((state.orbCalmScore || 0.3) * 0.55 + engine.calm * 0.45, 0, 1);
+    saveData();
+  };
+
+  const updatePointerInfluence = evt => {
+    const rect = orb.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const dx = evt.clientX - cx;
+    const dy = evt.clientY - cy;
+    const angle = Math.atan2(dy, dx);
+    const da = Math.atan2(Math.sin(angle - engine.prevAngle), Math.cos(angle - engine.prevAngle));
+    engine.prevAngle = angle;
+    engine.angle += da;
+    const orbitStrength = clamp(Math.abs(da) * 7.5, 0, 1);
+    engine.orbitInfluence = clamp(engine.orbitInfluence * 0.86 + orbitStrength * 0.14, 0, 1);
+    engine.orbitValue = clamp(engine.orbitValue * 0.88 + (da * 0.5), -1, 1);
+  };
+
+  const enterRecover = () => {
+    setPhase(phases.recover);
+    phasePulse([8, 55, 6]);
+    if (engine.hintTimeout) clearTimeout(engine.hintTimeout);
+    engine.hintTimeout = setTimeout(() => setPhase(phases.idle), phases.recover.duration);
+  };
+
+  const finishCycle = () => {
+    engine.cycleCount += 1;
+    const quality = clamp(engine.cycleQuality, 0, 1);
+    if (quality >= 0.62) {
+      nudgeCalm(0.048 + quality * 0.024);
+      phaseLabel.textContent = 'controle recuperado';
+      phasePulse([10, 45, 10, 45, 14]);
+    } else {
+      nudgeCalm(-0.012);
+      phaseLabel.textContent = 'recomece com suavidade';
+      phasePulse([8, 60, 8]);
+    }
+    engine.cycleQuality = 0;
+    if (engine.hintTimeout) clearTimeout(engine.hintTimeout);
+    engine.hintTimeout = setTimeout(() => setPhase(phases.idle), 1200);
+    persistCalm();
+  };
+
+  const releasePointer = () => {
+    orb.classList.remove('is-pressed');
+    orb.classList.remove('is-guiding');
+    engine.press = 0;
+    engine.pointerId = null;
+    engine.orbitInfluence *= 0.8;
+
+    if (engine.phase.id === 'inhale' || engine.phase.id === 'hold') {
+      enterRecover();
+    } else if (engine.phase.id === 'exhale') {
+      finishCycle();
+    }
+  };
+
+  orb.addEventListener('pointerdown', evt => {
+    orb.setPointerCapture?.(evt.pointerId);
+    orb.classList.add('is-pressed');
+    orb.classList.add('is-guiding');
+    engine.press = 1;
+    engine.pointerId = evt.pointerId;
+    engine.pointerDownAt = performance.now();
+    engine.prevAngle = Math.atan2(evt.clientY - (orb.getBoundingClientRect().top + orb.getBoundingClientRect().height / 2), evt.clientX - (orb.getBoundingClientRect().left + orb.getBoundingClientRect().width / 2));
+    engine.cycleQuality = clamp(engine.cycleQuality + 0.12, 0, 1);
+    setPhase(phases.inhale);
+    phasePulse(8);
+  });
+
+  orb.addEventListener('pointermove', evt => {
+    if (engine.pointerId !== evt.pointerId || !engine.press) return;
+    updatePointerInfluence(evt);
+    if (Math.abs(engine.orbitValue) < 0.16) engine.cycleQuality = clamp(engine.cycleQuality - 0.003, 0, 1);
+    else engine.cycleQuality = clamp(engine.cycleQuality + 0.004, 0, 1);
+  });
+
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach(evt => orb.addEventListener(evt, releasePointer));
+
+  setPhase(phases.idle);
+
+  const tick = now => {
+    const elapsed = now - engine.phaseStart;
+    const t = clamp(elapsed / engine.phase.duration, 0, 1);
+
+    if (engine.phase.id === 'idle') {
+      engine.breath = 0.44 + Math.sin(now * 0.00105) * 0.08;
+      if (!engine.press && elapsed > engine.phase.duration) setPhase(phases.idle);
+    } else if (engine.phase.id === 'inhale') {
+      engine.breath = 0.38 + t * 0.62;
+      engine.cycleQuality = clamp(engine.cycleQuality + (engine.press ? 0.0028 : -0.006), 0, 1);
+      if (!engine.press) enterRecover();
+      else if (t >= 1) {
+        setPhase(phases.hold);
+        phasePulse([5, 34, 5]);
+      }
+    } else if (engine.phase.id === 'hold') {
+      engine.breath = 1;
+      engine.cycleQuality = clamp(engine.cycleQuality + (engine.press ? 0.0017 : -0.01), 0, 1);
+      if (!engine.press) enterRecover();
+      else if (t >= 1) {
+        setPhase(phases.exhale);
+        phasePulse([4, 30, 4, 40, 8]);
+      }
+    } else if (engine.phase.id === 'exhale') {
+      engine.breath = 1 - t * 0.84;
+      engine.cycleQuality = clamp(engine.cycleQuality + (!engine.press ? 0.0035 : -0.005), 0, 1);
+      if (engine.press) {
+        phaseLabel.textContent = 'solte com leveza';
+      }
+      if (t >= 1) {
+        finishCycle();
+      }
+    } else if (engine.phase.id === 'recover') {
+      engine.breath = 0.46 + Math.sin(now * 0.0014) * 0.05;
+      engine.cycleQuality = clamp(engine.cycleQuality - 0.006, 0, 1);
+      if (t >= 1) setPhase(phases.idle);
+    }
+
+    engine.orbitInfluence = clamp(engine.orbitInfluence * 0.94, 0, 1);
+    engine.orbitValue = clamp(engine.orbitValue * 0.92, -1, 1);
+    engine.progress = clamp(engine.progress + (engine.phase.id === 'idle' ? 0.00008 : 0.0003), 0.08, 1);
+    engine.calm = clamp(engine.calm + (engine.phase.id === 'idle' ? 0.00003 : 0.00016), 0, 1);
+    engine.chaos = clamp(0.78 - engine.calm * 0.56 - engine.progress * 0.18 - engine.orbitInfluence * 0.22, 0.08, 0.86);
+
+    const luma = clamp(0.66 + engine.progress * 0.28 + engine.calm * 0.22, 0.6, 1);
+    orb.style.setProperty('--orb-breath', engine.breath.toFixed(4));
+    orb.style.setProperty('--orb-chaos', engine.chaos.toFixed(4));
+    orb.style.setProperty('--orb-progress', engine.progress.toFixed(4));
+    orb.style.setProperty('--orb-luma', luma.toFixed(4));
+    orb.style.setProperty('--orb-press', engine.press.toFixed(4));
+    orb.style.setProperty('--orb-orbit', engine.orbitValue.toFixed(4));
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
 }
 
 // 
