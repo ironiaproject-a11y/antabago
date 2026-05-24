@@ -24,8 +24,61 @@ const MIME_TYPES = {
   '.wasm': 'application/wasm'
 };
 
-http.createServer((req, res) => {
+async function readRequestBody(req) {
+  const chunks = [];
+  for await (const chunk of req) chunks.push(chunk);
+  return Buffer.concat(chunks);
+}
+
+async function proxyBuddyRequest(req, res) {
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204, {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET,POST,DELETE,OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Cache-Control': 'no-store'
+    });
+    res.end();
+    return;
+  }
+
+  const upstreamUrl = `https://xxmwotnhfhxwhepermlq.supabase.co/functions/v1/dynamic-endpoint${req.url.replace(/^\/api/, '')}`;
+  const body = await readRequestBody(req);
+  const headers = {
+    'Content-Type': req.headers['content-type'] || 'application/json'
+  };
+
+  if (req.headers.authorization) {
+    headers.Authorization = req.headers.authorization;
+    headers.apikey = req.headers.authorization.replace(/^Bearer\s+/i, '');
+  }
+
+  try {
+    const upstream = await fetch(upstreamUrl, {
+      method: req.method,
+      headers,
+      body: body.length ? body : undefined
+    });
+    const text = await upstream.text();
+    res.writeHead(upstream.status, {
+      'Content-Type': upstream.headers.get('content-type') || 'application/json',
+      'Cache-Control': 'no-store'
+    });
+    res.end(text);
+  } catch (error) {
+    res.writeHead(502, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ error: 'Falha ao acessar buddy-api', detail: String(error.message || error) }));
+  }
+}
+
+http.createServer(async (req, res) => {
   const cleanUrl = (req.url || '/').split('?')[0];
+
+  if (cleanUrl.startsWith('/api/buddy')) {
+    await proxyBuddyRequest(req, res);
+    return;
+  }
+
   const requestPath = cleanUrl === '/' ? 'index.html' : cleanUrl.replace(/^\/+/, '');
   const filePath = path.join(DIR, requestPath);
   const extname = String(path.extname(filePath)).toLowerCase();

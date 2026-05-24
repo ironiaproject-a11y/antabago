@@ -1,6 +1,5 @@
 ﻿import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import webpush from "https://esm.sh/web-push@3.6.7";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -17,9 +16,6 @@ const MILESTONES = [
 ];
 
 const VAPID_PUBLIC_KEY = Deno.env.get("VAPID_PUBLIC_KEY") || "";
-const VAPID_PRIVATE_KEY = Deno.env.get("VAPID_PRIVATE_KEY") || "";
-const VAPID_SUBJECT = Deno.env.get("VAPID_SUBJECT") || "mailto:contato@respira.app";
-if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
 
 function json(status: number, body: unknown) {
   return new Response(JSON.stringify(body), { status, headers: { ...CORS, "Content-Type": "application/json" } });
@@ -38,16 +34,10 @@ function milestoneProgress(quitDate?: string | null, cigsPerDay = 10) {
 }
 
 async function sendPushToUser(admin: any, userId: string, title: string, body: string) {
-  if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) return;
-  const { data: subs } = await admin.from("push_subscriptions").select("id,endpoint,p256dh,auth").eq("user_id", userId);
-  if (!subs?.length) return;
-  for (const s of subs) {
-    try {
-      await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, JSON.stringify({ title, body }));
-    } catch (_e) {
-      await admin.from("push_subscriptions").delete().eq("id", s.id);
-    }
-  }
+  void admin;
+  void userId;
+  void title;
+  void body;
 }
 
 serve(async (req) => {

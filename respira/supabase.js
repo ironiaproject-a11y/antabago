@@ -1,9 +1,10 @@
 // supabase.js  Respira v3 Cloud Sync
 // 
 const SUPABASE_URL  = 'https://xxmwotnhfhxwhepermlq.supabase.co';
-const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh4bXdvdG5oZmh4d2hlcGVybWxxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4NjExMTksImV4cCI6MjA5NDQzNzExOX0.1ZobXvdw9trF-R7rEXCyB8jAb6ltsrK8N1az_NIIWr8';
+const SUPABASE_ANON = 'sb_publishable_haWdgd_VjxIq70BK8JE7_w_gaGwu0ia';
 
 const _sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+window.__RESPIRA_SB_CLIENT = _sb;
 
 //  Usu�rio atual 
 let currentUser = null;

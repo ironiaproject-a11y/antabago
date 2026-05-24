@@ -1,4 +1,4 @@
-﻿const BUDDY_API_BASE = `${SUPABASE_URL}/functions/v1/buddy-api/buddy`;
+﻿const BUDDY_API_BASE = '/api/buddy';
 
 function formatBuddyDuration(minutes) {
   if (minutes == null) return 'Ainda sem data definida';
@@ -18,7 +18,7 @@ function fromNowPt(ts) {
 }
 
 function buddyMilestoneToast(msg) {
-  if (typeof showToast === 'function') showToast(`🎉 ${msg}`);
+  if (typeof showToast === 'function') showToast(`?? ${msg}`);
 }
 
 function buddyStatusBadge(isOnline, lastSeen) {
@@ -111,8 +111,8 @@ function useBuddyConnection() {
   };
 
   const authHeaders = async () => {
-    const sb = window.RespiraSupabase?.client;
-    if (!sb) throw new Error('Supabase nao inicializado');
+    const sb = window.RespiraSupabase?.client || window.__RESPIRA_SB_CLIENT;
+    if (!sb) throw new Error('Supabase nao foi iniciado. Recarregue a pagina e faca login novamente.');
     const { data } = await sb.auth.getSession();
     const token = data.session?.access_token;
     if (!token) throw new Error('Sessao expirada. Entre novamente para usar Parceiro de Jornada.');
@@ -159,7 +159,7 @@ function useBuddyConnection() {
   };
 
   const generateInvite = async () => {
-    const res = await fetch(`${BUDDY_API_BASE}/invite`, { method: 'POST', headers: await authHeaders() });
+    const res = await fetchWithTimeout(`${BUDDY_API_BASE}/invite`, { method: 'POST', headers: await authHeaders() });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Falha ao gerar convite');
     state.inviteCode = data.invite_code;
@@ -168,7 +168,7 @@ function useBuddyConnection() {
   };
 
   const acceptInvite = async (code) => {
-    const res = await fetch(`${BUDDY_API_BASE}/accept`, { method: 'POST', headers: await authHeaders(), body: JSON.stringify({ invite_code: code }) });
+    const res = await fetchWithTimeout(`${BUDDY_API_BASE}/accept`, { method: 'POST', headers: await authHeaders(), body: JSON.stringify({ invite_code: code }) });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Falha ao aceitar convite');
     await refreshMe();
@@ -288,7 +288,7 @@ function renderBuddyDashboardScreen(st) {
     <div class="buddy-dash-wrap">
       ${bothOnline ? '<div class="buddy-team-online">Vocês dois estao aqui agora!</div>' : ''}
       ${buddyProgressCard('Eu', myData, true)}
-      <div class="buddy-divider">🤝</div>
+      <div class="buddy-divider">??</div>
       ${buddyProgressCard(st.buddy?.display_name || 'Parceiro', st.buddy || {}, false)}
       <div class="buddy-actions"><button class="btn-ghost" onclick="buddyEndConnection()">Encerrar conexao</button></div>
     </div>
@@ -305,15 +305,29 @@ async function renderBuddyScreen() {
 }
 
 async function buddyGenerateInvite() {
-  try { await buddyConnection.generateInvite(); renderBuddyInviteScreen(buddyConnection.state); }
-  catch (e) { showToast(e.message || 'Falha ao gerar convite'); }
+  try {
+    buddyConnection.state.error = null;
+    await buddyConnection.generateInvite();
+    renderBuddyInviteScreen(buddyConnection.state);
+  } catch (e) {
+    buddyConnection.state.error = e?.message || 'Falha ao gerar convite';
+    renderBuddyInviteScreen(buddyConnection.state);
+    showToast(buddyConnection.state.error);
+  }
 }
 
 async function buddyAcceptInvite() {
   const code = (document.getElementById('buddy-accept-code')?.value || '').trim().toUpperCase();
   if (!code) return showToast('Digite o codigo de convite');
-  try { await buddyConnection.acceptInvite(code); renderBuddyScreen(); }
-  catch (e) { showToast(e.message || 'Nao foi possivel aceitar'); }
+  try {
+    buddyConnection.state.error = null;
+    await buddyConnection.acceptInvite(code);
+    renderBuddyScreen();
+  } catch (e) {
+    buddyConnection.state.error = e?.message || 'Nao foi possivel aceitar';
+    renderBuddyInviteScreen(buddyConnection.state);
+    showToast(buddyConnection.state.error);
+  }
 }
 
 async function buddyEndConnection() {
@@ -336,7 +350,7 @@ async function buddyShareCode(code) {
 }
 
 function initBuddyFeature() {
-  registerBuddyPush().catch(() => {});
+  // The buddy feature should keep working even if web-push is not configured yet.
   if (buddyHeartbeat) clearInterval(buddyHeartbeat);
   buddyHeartbeatTick();
   buddyHeartbeat = setInterval(buddyHeartbeatTick, 60000);
@@ -355,5 +369,7 @@ window.buddyEndConnection = buddyEndConnection;
 window.buddyCopyCode = buddyCopyCode;
 window.buddyShareCode = buddyShareCode;
 window.initBuddyFeature = initBuddyFeature;
+
+
 
 
