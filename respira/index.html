@@ -199,6 +199,7 @@
         <div class="hero-glow"></div>
         <div class="hero-orbit hero-orbit-1"></div>
         <div class="hero-orbit hero-orbit-2"></div>
+        <div class="hero-particles" id="hero-orb-particles" aria-hidden="true"></div>
         <div class="hero-sphere">
           <div class="hero-aura hero-aura-1"></div>
           <div class="hero-aura hero-aura-2"></div>
@@ -210,20 +211,25 @@
           </div>
         </div>
         <div class="hero-phase" id="hero-orb-phase">respire</div>
+        <div class="hero-state" id="hero-orb-state">estabilizando</div>
       </div>
+    </div>
+    <div class="hero-orb-caption">
+      <p class="hero-orb-title">Sua âncora de respiração</p>
+      <p class="hero-orb-sub" id="hero-orb-sub">Toque e segure. A esfera acompanha seu ritmo.</p>
     </div>
 
     <!-- Greeting Text -->
     <div class="greeting-section">
-      <p class="greeting-kicker">Bem-vindo de volta</p>
+      <p class="greeting-kicker">Agora</p>
       <h2 class="greeting-title">
-        Como posso ajudar<br>você hoje?
+        Escolha seu próximo<br>passo com calma
       </h2>
     </div>
 
     <!-- Topic Cards Section (Horizontal Scroll) -->
     <div class="topic-cards-section">
-      <p class="topic-kicker">Selecione um tópico abaixo</p>
+      <p class="topic-kicker">Acessos rápidos</p>
       <div class="topic-cards-scroll">
         <div class="topic-card bg-purple" onclick="navigate('coach')">
           <div class="topic-icon-wrap">
@@ -231,7 +237,7 @@
           </div>
           <div class="topic-card-footer">
             <span class="topic-title">Falar com o<br>Coach IA</span>
-            <span class="topic-arrow">:</span>
+            <span class="topic-arrow">→</span>
           </div>
         </div>
         <div class="topic-card bg-pink" onclick="navigate('progress')">
@@ -240,34 +246,34 @@
           </div>
           <div class="topic-card-footer">
             <span class="topic-title">Acompanhar<br>Progresso</span>
-            <span class="topic-arrow">:</span>
+            <span class="topic-arrow">→</span>
           </div>
         </div>
         <div class="topic-card bg-blue" onclick="navigate('register')">
           <div class="topic-icon-wrap">
-            <span class="topic-icon">🧠</span>
+            <span class="topic-icon">📝</span>
           </div>
           <div class="topic-card-footer">
             <span class="topic-title">Registrar um<br>Cigarro</span>
-            <span class="topic-arrow">:</span>
+            <span class="topic-arrow">→</span>
           </div>
         </div>
         <div class="topic-card bg-purple" onclick="navigate('milestones')">
           <div class="topic-icon-wrap">
-            <span class="topic-icon">🧠</span>
+            <span class="topic-icon">🏅</span>
           </div>
           <div class="topic-card-footer">
             <span class="topic-title">Ver meus<br>Marcos</span>
-            <span class="topic-arrow">:</span>
+            <span class="topic-arrow">→</span>
           </div>
         </div>
         <div class="topic-card bg-blue" onclick="navigate('buddy')">
           <div class="topic-icon-wrap">
-            <span class="topic-icon">🧠</span>
+            <span class="topic-icon">🤝</span>
           </div>
           <div class="topic-card-footer">
             <span class="topic-title">Parceiro de<br>Jornada</span>
-            <span class="topic-arrow">:</span>
+            <span class="topic-arrow">→</span>
           </div>
         </div>
       </div>
@@ -307,20 +313,27 @@
       <button class="audio-toggle-btn" id="audio-toggle-btn" onclick="toggleCrisisAudio()" title="Ativar/desativar sons">x`</button>
     </div>
 
-    <div class="breathe-circle" id="breathe-circle">
-      <!-- SVG Progress Ring -->
-      <svg class="breathe-svg" width="280" height="280">
-        <circle class="breathe-track-ring" cx="140" cy="140" r="125" />
-        <circle class="breathe-progress-ring" id="breathe-progress" cx="140" cy="140" r="125" />
-      </svg>
-      <div class="breathe-ring br1"></div>
-      <div class="breathe-ring br2"></div>
-      <div class="breathe-core">
-        <div class="breathe-text-wrap">
-          <span id="breathe-label">Respire</span>
-          <span id="breathe-timer">4</span>
+    <div class="breathing-widget" id="breathing-widget">
+      <div class="breathing-modes" role="tablist" aria-label="Modos de respiração">
+        <button class="breath-mode-tab active" data-mode="normal" type="button">Normal</button>
+        <button class="breath-mode-tab" data-mode="crisis" type="button">Modo Crise</button>
+        <button class="breath-mode-tab" data-mode="relax" type="button">Relaxar</button>
+      </div>
+      <div class="breathing-sphere-wrap" id="breathe-circle" role="button" aria-label="Toque para iniciar respiração">
+        <div class="breathing-particles" id="breathing-particles" aria-hidden="true"></div>
+        <div class="breathing-ring ring-1"></div>
+        <div class="breathing-ring ring-2"></div>
+        <div class="breathing-ring ring-3"></div>
+        <div class="breathing-sphere sphere idle">
+          <div class="breathe-text-wrap">
+            <span id="breathe-label">IDLE</span>
+            <span id="breathe-timer">0</span>
+            <span id="breathe-hint">tap to start</span>
+          </div>
         </div>
       </div>
+      <div class="breathing-progress" id="breathing-progress"></div>
+      <button class="breathing-control-btn" id="breathing-control-btn" type="button">Começar</button>
     </div>
 
     <div class="crisis-chat" id="crisis-chat">

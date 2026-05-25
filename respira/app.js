@@ -134,7 +134,10 @@ function updateNavActive(target) {
 }
 
 function navigate(target) {
-  if (target !== 'crisis') stopBreathingTone();
+  if (target !== 'crisis') {
+    stopBreathingTone();
+    if (typeof resetBreathingSession === 'function') resetBreathingSession();
+  }
   showScreen(target);
   updateNavActive(target);
 
@@ -189,14 +192,17 @@ function animateHomeEntrance() {
 function initHeroOrb() {
   const orb = document.getElementById('hero-orb');
   const phaseLabel = document.getElementById('hero-orb-phase');
-  if (!orb || !phaseLabel || heroOrbEngine) return;
+  const stateLabel = document.getElementById('hero-orb-state');
+  const subLabel = document.getElementById('hero-orb-sub');
+  const particlesHost = document.getElementById('hero-orb-particles');
+  if (!orb || !phaseLabel || !stateLabel || !particlesHost || heroOrbEngine) return;
 
   const phases = {
-    idle: { id: 'idle', label: 'respire', duration: 2800 },
-    inhale: { id: 'inhale', label: 'segure e inspire', duration: 4200 },
-    hold: { id: 'hold', label: 'mantenha', duration: 1700 },
-    exhale: { id: 'exhale', label: 'solte devagar', duration: 4600 },
-    recover: { id: 'recover', label: 'retome o ritmo', duration: 1800 }
+    idle: { id: 'idle', label: 'respire comigo', duration: 2800 },
+    inhale: { id: 'inhale', label: 'inspire com calma', duration: 4300 },
+    hold: { id: 'hold', label: 'segure sem tensão', duration: 1800 },
+    exhale: { id: 'exhale', label: 'solte devagar', duration: 4700 },
+    recover: { id: 'recover', label: 'volte ao centro', duration: 1800 }
   };
 
   const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
@@ -217,10 +223,80 @@ function initHeroOrb() {
     prevAngle: 0,
     orbitInfluence: 0,
     orbitValue: 0,
+    tiltX: 0,
+    tiltY: 0,
+    focus: 0,
+    bond: 0,
+    mood: 'calm',
     hintTimeout: null,
-    lastPersistAt: 0
+    lastPersistAt: 0,
+    particles: [],
+    adaptivePace: 1,
+    rushScore: 0,
+    stabilityScore: 0.55,
+    regulationIndex: 28,
+    regulationMomentum: 0,
+    lastHoldMs: 0,
+    lastReleaseMs: 0,
+    guidanceTone: 'normal'
   };
   heroOrbEngine = engine;
+
+  const tuning = {
+    rushedHoldMs: 1050,
+    rushedReleaseMs: 820,
+    stableHoldMs: 1650,
+    stableReleaseMs: 1350,
+    anxiousOrbit: 0.74,
+    rushTrigger: 0.52,
+    flowTrigger: 0.72,
+    paceMin: 0.94,
+    paceMax: 1.24
+  };
+
+  const setMood = mood => {
+    engine.mood = mood;
+    orb.dataset.mood = mood;
+  };
+
+  const computeRecentEmotionalWeight = () => {
+    const oneDayAgo = Date.now() - (24 * 60 * 60 * 1000);
+    const recent = state.history.filter(h => h.timestamp >= oneDayAgo);
+    const wins = recent.filter(h => h.type === 'win').length;
+    const relapses = recent.filter(h => h.type === 'relapse').length;
+    return clamp((wins * 0.08) - (relapses * 0.16), -0.35, 0.35);
+  };
+
+  const buildParticles = () => {
+    const amount = 14;
+    for (let i = 0; i < amount; i++) {
+      const el = document.createElement('span');
+      el.className = 'hero-particle';
+      const baseAngle = Math.random() * 360;
+      const radius = 56 + Math.random() * 46;
+      const size = 0.4 + Math.random() * 1.05;
+      const alpha = 0.14 + Math.random() * 0.34;
+      const wave = -4 + Math.random() * 8;
+      const flow = (40 + Math.random() * 140) * (Math.random() > 0.5 ? 1 : -1);
+      el.style.setProperty('--p-angle', `${baseAngle}deg`);
+      el.style.setProperty('--p-radius', `${radius}px`);
+      el.style.setProperty('--p-size', size.toFixed(3));
+      el.style.setProperty('--p-alpha', alpha.toFixed(3));
+      el.style.setProperty('--p-wave', `${wave.toFixed(2)}px`);
+      el.style.setProperty('--p-flow', `${flow.toFixed(2)}deg`);
+      particlesHost.appendChild(el);
+      engine.particles.push({ el, baseAngle, radius, size, alpha, flow });
+    }
+  };
+  buildParticles();
+
+  const setPhaseDurations = () => {
+    const pace = engine.adaptivePace;
+    phases.inhale.duration = Math.round(3900 * pace);
+    phases.hold.duration = Math.round(1600 * pace);
+    phases.exhale.duration = Math.round(4600 * pace);
+    phases.recover.duration = Math.round(1700 * pace);
+  };
 
   const setPhase = phase => {
     engine.phase = phase;
@@ -235,6 +311,21 @@ function initHeroOrb() {
     engine.chaos = clamp(engine.chaos - amount * 0.8, 0.08, 0.84);
   };
 
+  const updateRegulationIndex = (quality, completedCycle) => {
+    const qualityBoost = Math.max(0, (quality - 0.5) * 16);
+    const phaseBoost = completedCycle ? 1.8 : 0.45;
+    const momentumDelta = clamp((quality - 0.56) * 0.09, -0.015, 0.05);
+
+    engine.regulationMomentum = clamp(engine.regulationMomentum * 0.9 + momentumDelta, -0.08, 0.28);
+    const delta = Math.max(0, qualityBoost * 0.04 + phaseBoost + engine.regulationMomentum * 3);
+    engine.regulationIndex = clamp(engine.regulationIndex + delta, 0, 100);
+  };
+
+  const softlyPauseRegulationGain = () => {
+    engine.regulationMomentum = clamp(engine.regulationMomentum * 0.72 - 0.006, -0.08, 0.24);
+    engine.regulationIndex = clamp(engine.regulationIndex - 0.08, 0, 100);
+  };
+
   const phasePulse = pattern => {
     if (navigator.vibrate) navigator.vibrate(pattern);
   };
@@ -247,12 +338,71 @@ function initHeroOrb() {
     saveData();
   };
 
+  const updateStateLabel = () => {
+    if (engine.guidanceTone === 'slowdown') stateLabel.textContent = 'vamos desacelerar juntos';
+    else if (engine.regulationIndex >= 82) stateLabel.textContent = 'seu corpo está encontrando calma';
+    else if (engine.regulationIndex >= 64) stateLabel.textContent = 'você está retomando o controle';
+    else if (engine.regulationIndex >= 42) stateLabel.textContent = 'estabilizando, continue nesse ritmo';
+    else stateLabel.textContent = 'comece leve, sem pressa';
+  };
+
+  const updateSubLabel = () => {
+    if (!subLabel) return;
+    if (engine.guidanceTone === 'slowdown') subLabel.textContent = 'Diminua um pouco. Eu sigo com você.';
+    else if (engine.phase.id === 'inhale' || engine.phase.id === 'hold' || engine.phase.id === 'exhale') subLabel.textContent = 'Mantenha o toque e acompanhe o pulso da esfera.';
+    else if (engine.bond > 0.55) subLabel.textContent = 'Boa. Sua respiração está em sintonia.';
+    else if (engine.regulationIndex >= 72) subLabel.textContent = 'Seu ritmo está mais estável agora.';
+    else subLabel.textContent = 'Toque e segure. A esfera acompanha seu ritmo.';
+  };
+
+  const adaptGuidanceFromRhythm = now => {
+    const holdMs = engine.press ? (now - engine.pointerDownAt) : engine.lastHoldMs;
+    const releaseMs = engine.lastReleaseMs;
+    const orbitSmooth = clamp(1 - Math.min(1, Math.abs(engine.orbitValue)), 0, 1);
+
+    const rushedHold = holdMs > 0 && holdMs < tuning.rushedHoldMs ? 1 : 0;
+    const rushedRelease = releaseMs > 0 && releaseMs < tuning.rushedReleaseMs ? 1 : 0;
+    const anxiousMotion = engine.orbitInfluence > tuning.anxiousOrbit ? 1 : 0;
+    const stablePress = holdMs >= tuning.stableHoldMs ? 1 : 0;
+    const stableRelease = releaseMs >= tuning.stableReleaseMs ? 1 : 0;
+
+    engine.rushScore = clamp(
+      engine.rushScore * 0.95 + rushedHold * 0.042 + rushedRelease * 0.046 + anxiousMotion * 0.024 - stablePress * 0.034 - stableRelease * 0.028,
+      0,
+      1
+    );
+
+    engine.stabilityScore = clamp(
+      engine.stabilityScore * 0.96 + stablePress * 0.034 + stableRelease * 0.035 + orbitSmooth * 0.012 - rushedHold * 0.024,
+      0,
+      1
+    );
+
+    if (engine.rushScore > tuning.rushTrigger) {
+      engine.guidanceTone = 'slowdown';
+      engine.adaptivePace = clamp(engine.adaptivePace + 0.0018, 1, tuning.paceMax);
+    } else if (engine.stabilityScore > tuning.flowTrigger) {
+      engine.guidanceTone = 'flow';
+      engine.adaptivePace = clamp(engine.adaptivePace - 0.00095, tuning.paceMin, tuning.paceMax);
+    } else {
+      engine.guidanceTone = 'normal';
+      engine.adaptivePace = clamp(engine.adaptivePace + (engine.adaptivePace < 1 ? 0.0007 : -0.0007), tuning.paceMin, 1.16);
+    }
+
+    setPhaseDurations();
+  };
+
   const updatePointerInfluence = evt => {
     const rect = orb.getBoundingClientRect();
     const cx = rect.left + rect.width / 2;
     const cy = rect.top + rect.height / 2;
     const dx = evt.clientX - cx;
     const dy = evt.clientY - cy;
+    const nx = clamp(dx / (rect.width / 2), -1, 1);
+    const ny = clamp(dy / (rect.height / 2), -1, 1);
+    engine.tiltX = clamp(-ny * 7.5, -8, 8);
+    engine.tiltY = clamp(nx * 9, -10, 10);
+    engine.focus = clamp(engine.focus * 0.84 + (Math.abs(nx) + Math.abs(ny)) * 0.11, 0, 1);
     const angle = Math.atan2(dy, dx);
     const da = Math.atan2(Math.sin(angle - engine.prevAngle), Math.cos(angle - engine.prevAngle));
     engine.prevAngle = angle;
@@ -265,6 +415,7 @@ function initHeroOrb() {
   const enterRecover = () => {
     setPhase(phases.recover);
     phasePulse([8, 55, 6]);
+    softlyPauseRegulationGain();
     if (engine.hintTimeout) clearTimeout(engine.hintTimeout);
     engine.hintTimeout = setTimeout(() => setPhase(phases.idle), phases.recover.duration);
   };
@@ -274,11 +425,16 @@ function initHeroOrb() {
     const quality = clamp(engine.cycleQuality, 0, 1);
     if (quality >= 0.62) {
       nudgeCalm(0.048 + quality * 0.024);
-      phaseLabel.textContent = 'controle recuperado';
+      updateRegulationIndex(quality, true);
+      phaseLabel.textContent = 'equilíbrio recuperado';
       phasePulse([10, 45, 10, 45, 14]);
+      engine.bond = clamp(engine.bond + 0.28, 0, 1);
+      orb.classList.add('is-bonding');
+      setTimeout(() => orb.classList.remove('is-bonding'), 900);
     } else {
-      nudgeCalm(-0.012);
-      phaseLabel.textContent = 'recomece com suavidade';
+      nudgeCalm(0.002);
+      updateRegulationIndex(Math.max(0.35, quality), true);
+      phaseLabel.textContent = 'retome no seu tempo';
       phasePulse([8, 60, 8]);
     }
     engine.cycleQuality = 0;
@@ -293,6 +449,9 @@ function initHeroOrb() {
     engine.press = 0;
     engine.pointerId = null;
     engine.orbitInfluence *= 0.8;
+    engine.focus *= 0.72;
+    engine.lastHoldMs = performance.now() - engine.pointerDownAt;
+    engine.lastReleaseMs = 0;
 
     if (engine.phase.id === 'inhale' || engine.phase.id === 'hold') {
       enterRecover();
@@ -324,6 +483,9 @@ function initHeroOrb() {
   ['pointerup', 'pointercancel', 'pointerleave'].forEach(evt => orb.addEventListener(evt, releasePointer));
 
   setPhase(phases.idle);
+  setPhaseDurations();
+  setMood('calm');
+  updateStateLabel();
 
   const tick = now => {
     const elapsed = now - engine.phaseStart;
@@ -331,10 +493,12 @@ function initHeroOrb() {
 
     if (engine.phase.id === 'idle') {
       engine.breath = 0.44 + Math.sin(now * 0.00105) * 0.08;
+      if (!engine.press) engine.lastReleaseMs += 16;
       if (!engine.press && elapsed > engine.phase.duration) setPhase(phases.idle);
     } else if (engine.phase.id === 'inhale') {
       engine.breath = 0.38 + t * 0.62;
       engine.cycleQuality = clamp(engine.cycleQuality + (engine.press ? 0.0028 : -0.006), 0, 1);
+      if (engine.press) updateRegulationIndex(clamp(0.56 + engine.cycleQuality * 0.32, 0, 1), false);
       if (!engine.press) enterRecover();
       else if (t >= 1) {
         setPhase(phases.hold);
@@ -343,16 +507,18 @@ function initHeroOrb() {
     } else if (engine.phase.id === 'hold') {
       engine.breath = 1;
       engine.cycleQuality = clamp(engine.cycleQuality + (engine.press ? 0.0017 : -0.01), 0, 1);
+      if (engine.press) updateRegulationIndex(clamp(0.58 + engine.cycleQuality * 0.3, 0, 1), false);
       if (!engine.press) enterRecover();
       else if (t >= 1) {
         setPhase(phases.exhale);
-        phasePulse([4, 30, 4, 40, 8]);
+        phasePulse([4, 36, 4, 44, 10]);
       }
     } else if (engine.phase.id === 'exhale') {
       engine.breath = 1 - t * 0.84;
       engine.cycleQuality = clamp(engine.cycleQuality + (!engine.press ? 0.0035 : -0.005), 0, 1);
+      if (!engine.press) updateRegulationIndex(clamp(0.55 + engine.cycleQuality * 0.35, 0, 1), false);
       if (engine.press) {
-        phaseLabel.textContent = 'solte com leveza';
+        phaseLabel.textContent = 'solte com suavidade';
       }
       if (t >= 1) {
         finishCycle();
@@ -365,17 +531,51 @@ function initHeroOrb() {
 
     engine.orbitInfluence = clamp(engine.orbitInfluence * 0.94, 0, 1);
     engine.orbitValue = clamp(engine.orbitValue * 0.92, -1, 1);
-    engine.progress = clamp(engine.progress + (engine.phase.id === 'idle' ? 0.00008 : 0.0003), 0.08, 1);
-    engine.calm = clamp(engine.calm + (engine.phase.id === 'idle' ? 0.00003 : 0.00016), 0, 1);
-    engine.chaos = clamp(0.78 - engine.calm * 0.56 - engine.progress * 0.18 - engine.orbitInfluence * 0.22, 0.08, 0.86);
+    engine.tiltX *= 0.92;
+    engine.tiltY *= 0.92;
+    engine.focus = clamp(engine.focus * 0.94 + (engine.press ? 0.016 : -0.01), 0, 1);
+    engine.bond = clamp(engine.bond * 0.992 - (engine.phase.id === 'idle' ? 0.0018 : 0), 0, 1);
+    adaptGuidanceFromRhythm(now);
+    const emotionalWeight = computeRecentEmotionalWeight();
+    engine.progress = clamp(engine.progress + (engine.phase.id === 'idle' ? 0.00008 : 0.0003) + emotionalWeight * 0.0006, 0.08, 1);
+    const calmGain = engine.guidanceTone === 'slowdown' ? 0.00022 : 0.00016;
+    engine.calm = clamp(engine.calm + (engine.phase.id === 'idle' ? 0.00003 : calmGain), 0, 1);
+    const regFactor = engine.regulationIndex / 100;
+    engine.chaos = clamp(0.78 - engine.calm * 0.56 - engine.progress * 0.18 - engine.orbitInfluence * 0.22 - regFactor * 0.16, 0.06, 0.86);
+    if (engine.chaos > 0.5) setMood('anxious');
+    else setMood('calm');
 
-    const luma = clamp(0.66 + engine.progress * 0.28 + engine.calm * 0.22, 0.6, 1);
+    if (engine.guidanceTone === 'slowdown' && engine.phase.id === 'inhale') {
+      phaseLabel.textContent = 'inspire ainda mais devagar';
+    } else if (engine.guidanceTone === 'slowdown' && engine.phase.id === 'exhale') {
+      phaseLabel.textContent = 'solte ainda mais lento';
+    } else if (engine.guidanceTone === 'flow' && engine.phase.id === 'hold') {
+      phaseLabel.textContent = 'ritmo consistente';
+    }
+
+    const luma = clamp(0.66 + engine.progress * 0.28 + engine.calm * 0.22 + regFactor * 0.08, 0.6, 1);
     orb.style.setProperty('--orb-breath', engine.breath.toFixed(4));
     orb.style.setProperty('--orb-chaos', engine.chaos.toFixed(4));
     orb.style.setProperty('--orb-progress', engine.progress.toFixed(4));
     orb.style.setProperty('--orb-luma', luma.toFixed(4));
     orb.style.setProperty('--orb-press', engine.press.toFixed(4));
     orb.style.setProperty('--orb-orbit', engine.orbitValue.toFixed(4));
+    orb.style.setProperty('--orb-tilt-x', `${engine.tiltX.toFixed(2)}deg`);
+    orb.style.setProperty('--orb-tilt-y', `${engine.tiltY.toFixed(2)}deg`);
+    orb.style.setProperty('--orb-focus', engine.focus.toFixed(4));
+    orb.style.setProperty('--orb-bond', engine.bond.toFixed(4));
+    updateStateLabel();
+    updateSubLabel();
+
+    engine.particles.forEach((p, i) => {
+      const angle = p.baseAngle + (now * 0.008 * (i % 2 ? 1 : -1)) + (engine.orbitValue * 140);
+      const breathOffset = Math.sin((now * 0.0015) + i) * (2 + engine.progress * 2.5);
+      const radius = p.radius + breathOffset - (engine.chaos * 7);
+      const alpha = clamp(p.alpha + engine.progress * 0.22 - engine.chaos * 0.18 + engine.orbitInfluence * 0.12, 0.08, 0.72);
+      p.el.style.setProperty('--p-angle', `${angle.toFixed(2)}deg`);
+      p.el.style.setProperty('--p-radius', `${radius.toFixed(2)}px`);
+      p.el.style.setProperty('--p-alpha', alpha.toFixed(3));
+    });
     requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);
@@ -552,17 +752,41 @@ function setEl(id, val) {
 }
 
 // 
-// MODO CRISE - Respiração 4-4-4-4 box breathing
+// MODO CRISE - Esfera de respiracao (modos e ciclos)
 // 
-let breatheInterval = null;
-let breathePhase = 0; // 0=inhale,1=hold,2=exhale,3=hold
-let breatheCount = 0;
-const PHASES = [
-  { label: 'Inspire...', dur: 4000 },
-  { label: 'Segure',     dur: 4000 },
-  { label: 'Expire...',  dur: 4000 },
-  { label: 'Espere',     dur: 4000 }
-];
+const BREATH_MODES = {
+  normal: {
+    cycles: 5,
+    phases: [
+      { id: 'inhale', label: 'INSPIRE', dur: 4000 },
+      { id: 'hold', label: 'SEGURE', dur: 4000 },
+      { id: 'exhale', label: 'EXPIRE', dur: 6000 },
+      { id: 'hold2', label: 'PAUSE', dur: 2000 }
+    ]
+  },
+  crisis: {
+    cycles: 10,
+    phases: [
+      { id: 'inhale', label: 'INSPIRE', dur: 4000 },
+      { id: 'hold', label: 'SEGURE', dur: 7000 },
+      { id: 'exhale', label: 'EXPIRE', dur: 8000 }
+    ]
+  },
+  relax: {
+    cycles: 8,
+    phases: [
+      { id: 'inhale', label: 'INSPIRE', dur: 5000 },
+      { id: 'exhale', label: 'EXPIRE', dur: 7000 }
+    ]
+  }
+};
+let breathingUiReady = false;
+let breathingMode = 'normal';
+let breathingActive = false;
+let breathingCycle = 0;
+let breathingPhaseIndex = 0;
+let breathingPhaseTimeout = null;
+let breathingCountdownTimer = null;
 
 const crisisMessages = [
   'Eu sei que está difícil agora. Isso vai passar.',
@@ -596,8 +820,8 @@ function initCrisis() {
       </div>
     </div>`;
 
-  initCrisisCanvas();
-  startBreatheAnimation();
+  initBreathingWidget();
+  resetBreathingSession();
 }
 
 /** Anima��o suave de particulas para o fundo da crise */
@@ -648,32 +872,148 @@ function initCrisisCanvas() {
   animate();
 }
 
-function startBreatheAnimation() {
-  if (breatheInterval) clearInterval(breatheInterval);
-  breathePhase = 0;
-  breatheCount = 0;
-  initAudioEngine();
-  applyBreathePhase();
-  breatheInterval = setInterval(() => {
-    breathePhase = (breathePhase + 1) % 4;
-    breatheCount++;
-    applyBreathePhase();
-  }, 4000);
+function initBreathingWidget() {
+  if (breathingUiReady) return;
+  breathingUiReady = true;
+  const circle = document.getElementById('breathe-circle');
+  const button = document.getElementById('breathing-control-btn');
+  const tabs = document.querySelectorAll('.breath-mode-tab');
+  const particlesHost = document.getElementById('breathing-particles');
+
+  if (particlesHost && particlesHost.childElementCount === 0) {
+    for (let i = 0; i < 18; i++) {
+      const p = document.createElement('span');
+      p.className = 'breathing-particle';
+      const size = 2 + Math.random() * 4;
+      p.style.width = `${size.toFixed(2)}px`;
+      p.style.height = `${size.toFixed(2)}px`;
+      p.style.left = `${(Math.random() * 100).toFixed(2)}%`;
+      p.style.setProperty('--dx', `${(-20 + Math.random() * 40).toFixed(1)}px`);
+      p.style.animationDelay = `${(Math.random() * 8).toFixed(2)}s`;
+      p.style.animationDuration = `${(9 + Math.random() * 7).toFixed(2)}s`;
+      particlesHost.appendChild(p);
+    }
+  }
+
+  if (button) {
+    button.addEventListener('click', () => {
+      if (breathingActive) resetBreathingSession();
+      else startBreathingSession();
+    });
+  }
+
+  if (circle) {
+    circle.addEventListener('click', () => {
+      if (!breathingActive) startBreathingSession();
+    });
+  }
+
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      const mode = tab.dataset.mode;
+      if (!mode || mode === breathingMode) return;
+      breathingMode = mode;
+      tabs.forEach(t => t.classList.toggle('active', t === tab));
+      resetBreathingSession();
+    });
+  });
 }
 
-function applyBreathePhase() {
+function renderBreathingDots() {
+  const host = document.getElementById('breathing-progress');
+  if (!host) return;
+  const total = BREATH_MODES[breathingMode].cycles;
+  host.innerHTML = Array.from({ length: total }, (_, i) => {
+    const stateClass = i < breathingCycle ? 'done' : (i === breathingCycle && breathingActive ? 'active' : '');
+    return `<span class="breath-dot ${stateClass}"></span>`;
+  }).join('');
+}
+
+function setBreathingIdleUi() {
   const circle = document.getElementById('breathe-circle');
-  const label  = document.getElementById('breathe-label');
-  if (!circle || !label) return;
+  const sphere = circle?.querySelector('.sphere');
+  const label = document.getElementById('breathe-label');
+  const timer = document.getElementById('breathe-timer');
+  const button = document.getElementById('breathing-control-btn');
+  if (!circle || !sphere || !label || !timer || !button) return;
+  circle.classList.remove('is-active', 'phase-inhale', 'phase-hold', 'phase-exhale', 'phase-hold2');
+  circle.classList.add('is-idle', 'phase-idle');
+  sphere.style.setProperty('--phase-dur', '4s');
+  sphere.className = 'breathing-sphere sphere idle';
+  label.textContent = 'IDLE';
+  timer.textContent = '0';
+  button.textContent = 'Começar';
+}
 
-  circle.classList.remove('inhale', 'hold', 'exhale');
-  label.textContent = PHASES[breathePhase].label;
+function resetBreathingSession() {
+  breathingActive = false;
+  breathingCycle = 0;
+  breathingPhaseIndex = 0;
+  if (breathingPhaseTimeout) clearTimeout(breathingPhaseTimeout);
+  if (breathingCountdownTimer) clearInterval(breathingCountdownTimer);
+  stopBreathingTone();
+  setBreathingIdleUi();
+  renderBreathingDots();
+}
 
-  if (breathePhase === 0) circle.classList.add('inhale');
-  else if (breathePhase === 2) circle.classList.add('exhale');
-  else circle.classList.add('hold');
+function startBreathingSession() {
+  if (breathingActive) return;
+  breathingActive = true;
+  breathingCycle = 0;
+  breathingPhaseIndex = 0;
+  initAudioEngine();
+  renderBreathingDots();
+  runBreathingPhase();
+}
 
-  playBreathingTone(breathePhase);
+function runBreathingPhase() {
+  if (!breathingActive) return;
+  const circle = document.getElementById('breathe-circle');
+  const sphere = circle?.querySelector('.sphere');
+  const label = document.getElementById('breathe-label');
+  const timer = document.getElementById('breathe-timer');
+  const button = document.getElementById('breathing-control-btn');
+  if (!circle || !sphere || !label || !timer || !button) return;
+
+  const mode = BREATH_MODES[breathingMode];
+  const phase = mode.phases[breathingPhaseIndex];
+  const phaseDurSec = phase.dur / 1000;
+
+  sphere.style.setProperty('--phase-dur', `${phaseDurSec}s`);
+  sphere.classList.remove('idle');
+  sphere.className = `breathing-sphere sphere ${phase.id}`;
+  console.log('[breathing] class applied:', sphere.className);
+  console.log('[breathing] --phase-dur:', sphere.style.getPropertyValue('--phase-dur'));
+
+  circle.classList.remove('is-idle', 'phase-idle', 'phase-inhale', 'phase-hold', 'phase-exhale', 'phase-hold2');
+  circle.classList.add('is-active', `phase-${phase.id}`);
+  label.textContent = phase.label;
+  button.textContent = 'Pausar';
+  playBreathingTone(phase.id === 'inhale' ? 0 : phase.id === 'hold' ? 1 : phase.id === 'exhale' ? 2 : 3);
+
+  const phaseSeconds = Math.ceil(phase.dur / 1000);
+  let remaining = phaseSeconds;
+  timer.textContent = String(remaining);
+  if (breathingCountdownTimer) clearInterval(breathingCountdownTimer);
+  breathingCountdownTimer = setInterval(() => {
+    remaining -= 1;
+    timer.textContent = String(Math.max(remaining, 0));
+  }, 1000);
+
+  breathingPhaseTimeout = setTimeout(() => {
+    if (breathingCountdownTimer) clearInterval(breathingCountdownTimer);
+    breathingPhaseIndex += 1;
+    if (breathingPhaseIndex >= mode.phases.length) {
+      breathingPhaseIndex = 0;
+      breathingCycle += 1;
+      renderBreathingDots();
+      if (breathingCycle >= mode.cycles) {
+        resetBreathingSession();
+        return;
+      }
+    }
+    runBreathingPhase();
+  }, phase.dur);
 }
 
 function selectIntensity(btn, val) {
@@ -728,7 +1068,7 @@ function crisisWon() {
   state.history.push({ type: 'win', timestamp: Date.now(), note: 'Venceu uma crise via Modo Crise' });
   saveData();
   checkBadges();
-  if (breatheInterval) clearInterval(breatheInterval);
+  resetBreathingSession();
   stopBreathingTone();
   vibrate([200, 100, 200, 100, 400]);
   showToast('Parabéns! Você venceu mais uma.');
