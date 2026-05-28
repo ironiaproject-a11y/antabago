@@ -1,4 +1,4 @@
-﻿// app.js  Respira v3 (com IA)
+// app.js  Respira v3 (com IA)
 // 
 // ESTADO GLOBAL
 // 
@@ -30,23 +30,23 @@ let state = {
 // 
 // ESTADO DA IA
 // 
-let aiConversation = []; // hist�rico da sess�o de crise
+let aiConversation = []; // histrico da sesso de crise
 let aiTyping = false;
 let milestoneMinuteTimer = null;
 let milestoneTimeouts = [];
 let heroOrbEngine = null;
 
 //  Proxy URL  Edge Function do Supabase 
-// A chave da IA fica NO SERVIDOR (vari�vel de ambiente do Supabase).
-// Os usuarios nunca veem a chave. Altere a URL abaixo ap�s criar a fun��o.
-const AI_PROXY_URL = `${SUPABASE_URL}/functions/v1/quick-responder`;
+// A chave da IA fica NO SERVIDOR (varivel de ambiente do Supabase).
+// Os usuarios nunca veem a chave. Altere a URL abaixo aps criar a funo.
+const AI_PROXY_URL = `${SUPABASE_URL}/functions/v1/ai-proxy`;
 
 function hasAI() {
-  return true; // IA sempre dispon�vel via proxy
+  return true; // IA sempre disponível via proxy
 }
 
 // 
-// INICIALIZA!�O
+// INICIALIZAÇÃO
 // 
 document.addEventListener('DOMContentLoaded', () => {
   showScreen('loading');
@@ -290,6 +290,54 @@ function initHeroOrb() {
   };
   buildParticles();
 
+  // Touch trail effect
+  const trailPool = [];
+  const TRAIL_MAX = 8;
+  const trailHost = document.createElement('div');
+  trailHost.className = 'hero-trail-host';
+  trailHost.style.cssText = 'position:absolute;inset:0;border-radius:50%;pointer-events:none;overflow:hidden;';
+  orb.appendChild(trailHost);
+
+  for (let i = 0; i < TRAIL_MAX; i++) {
+    const dot = document.createElement('span');
+    dot.style.cssText = `
+      position:absolute;width:6px;height:6px;border-radius:50%;
+      background:radial-gradient(circle,rgba(200,248,255,0.8),rgba(126,227,214,0.2) 60%,transparent);
+      opacity:0;pointer-events:none;transition:opacity 0.6s ease;
+      filter:blur(1.5px);transform:translate(-50%,-50%);
+    `;
+    trailHost.appendChild(dot);
+    trailPool.push({ el: dot, x: 0, y: 0, life: 0 });
+  }
+
+  let trailIndex = 0;
+  let lastTrailTime = 0;
+  const spawnTrail = (x, y) => {
+    const now = performance.now();
+    if (now - lastTrailTime < 60) return; // throttle
+    lastTrailTime = now;
+    const rect = orb.getBoundingClientRect();
+    const lx = x - rect.left;
+    const ly = y - rect.top;
+    const dot = trailPool[trailIndex % TRAIL_MAX];
+    dot.el.style.left = `${lx}px`;
+    dot.el.style.top = `${ly}px`;
+    dot.el.style.opacity = '0.7';
+    dot.life = 1;
+    trailIndex++;
+  };
+
+  // Decay trail in tick
+  const decayTrails = () => {
+    trailPool.forEach(dot => {
+      if (dot.life > 0) {
+        dot.life -= 0.025;
+        dot.el.style.opacity = Math.max(0, dot.life * 0.7).toFixed(3);
+        if (dot.life <= 0) dot.el.style.opacity = '0';
+      }
+    });
+  };
+
   const setPhaseDurations = () => {
     const pace = engine.adaptivePace;
     phases.inhale.duration = Math.round(3900 * pace);
@@ -476,11 +524,44 @@ function initHeroOrb() {
   orb.addEventListener('pointermove', evt => {
     if (engine.pointerId !== evt.pointerId || !engine.press) return;
     updatePointerInfluence(evt);
+    spawnTrail(evt.clientX, evt.clientY);
     if (Math.abs(engine.orbitValue) < 0.16) engine.cycleQuality = clamp(engine.cycleQuality - 0.003, 0, 1);
     else engine.cycleQuality = clamp(engine.cycleQuality + 0.004, 0, 1);
   });
 
   ['pointerup', 'pointercancel', 'pointerleave'].forEach(evt => orb.addEventListener(evt, releasePointer));
+
+  // Gyroscope support for natural tilt
+  const initGyroscope = () => {
+    let gyroActive = false;
+    const handleOrientation = (evt) => {
+      if (!gyroActive) gyroActive = true;
+      const beta = evt.beta || 0;   // front-back tilt (-180 to 180)
+      const gamma = evt.gamma || 0; // left-right tilt (-90 to 90)
+      // Only apply subtle influence when not actively touching
+      if (!engine.press) {
+        engine.tiltX = clamp(engine.tiltX * 0.88 + (-beta * 0.06) * 0.12, -6, 6);
+        engine.tiltY = clamp(engine.tiltY * 0.88 + (gamma * 0.08) * 0.12, -8, 8);
+        engine.focus = clamp(engine.focus * 0.92 + (Math.abs(beta) + Math.abs(gamma)) * 0.0008, 0, 0.3);
+      }
+    };
+
+    if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+      // iOS 13+ requires permission
+      orb.addEventListener('click', () => {
+        if (gyroActive) return;
+        DeviceOrientationEvent.requestPermission()
+          .then(response => {
+            if (response === 'granted') {
+              window.addEventListener('deviceorientation', handleOrientation, true);
+            }
+          }).catch(() => {});
+      }, { once: true });
+    } else if ('DeviceOrientationEvent' in window) {
+      window.addEventListener('deviceorientation', handleOrientation, true);
+    }
+  };
+  initGyroscope();
 
   setPhase(phases.idle);
   setPhaseDurations();
@@ -568,14 +649,37 @@ function initHeroOrb() {
     updateSubLabel();
 
     engine.particles.forEach((p, i) => {
-      const angle = p.baseAngle + (now * 0.008 * (i % 2 ? 1 : -1)) + (engine.orbitValue * 140);
-      const breathOffset = Math.sin((now * 0.0015) + i) * (2 + engine.progress * 2.5);
-      const radius = p.radius + breathOffset - (engine.chaos * 7);
-      const alpha = clamp(p.alpha + engine.progress * 0.22 - engine.chaos * 0.18 + engine.orbitInfluence * 0.12, 0.08, 0.72);
+      // Gravitational pull toward center (stronger when calm)
+      const gravityPull = (1 - engine.chaos) * 3.5;
+      const baseRadius = p.radius - gravityPull;
+      
+      // Organic orbital motion with figure-8 influence
+      const speed = 0.006 + engine.calm * 0.003;
+      const figure8 = Math.sin(now * speed * 0.7 + i * 1.3) * 4.5;
+      const angle = p.baseAngle + (now * speed * (i % 2 ? 1 : -1)) + (engine.orbitValue * 140) + figure8;
+      
+      // Breathing-synced radial oscillation
+      const breathOffset = Math.sin((now * 0.0015) + i * 0.9) * (2.5 + engine.progress * 3);
+      const pulseOffset = Math.sin(now * 0.002 + i * 0.5) * (engine.bond * 2.5);
+      const radius = clamp(baseRadius + breathOffset + pulseOffset - (engine.chaos * 6), 28, 108);
+      
+      // Dynamic alpha with flicker
+      const flicker = Math.sin(now * 0.004 + i * 2.1) * 0.06;
+      const bondGlow = engine.bond * 0.18;
+      const alpha = clamp(
+        p.alpha + engine.progress * 0.24 - engine.chaos * 0.16 + engine.orbitInfluence * 0.14 + bondGlow + flicker,
+        0.06, 0.78
+      );
+      
+      // Dynamic size based on distance from center
+      const sizeScale = clamp(0.7 + (radius / 100) * 0.6 + engine.breath * 0.15, 0.5, 1.6);
+      
       p.el.style.setProperty('--p-angle', `${angle.toFixed(2)}deg`);
       p.el.style.setProperty('--p-radius', `${radius.toFixed(2)}px`);
       p.el.style.setProperty('--p-alpha', alpha.toFixed(3));
+      p.el.style.setProperty('--p-size', sizeScale.toFixed(3));
     });
+    decayTrails();
     requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);
@@ -1616,42 +1720,222 @@ function burstConfetti() {
 }
 
 // 
-// IA  GROQ API
+// IA — GROQ API
 // 
+
+/** Analisa o histórico real de cigarros para prever riscos no Modo Preditor */
+function getAIHistoryStats() {
+  const history = state.history || [];
+  
+  if (history.length === 0) {
+    return {
+      horarios: "8h, 13h, 18h",
+      gatilhos: "Estresse e Café",
+      diasSemana: "Segunda-feira e Sexta-feira"
+    };
+  }
+
+  // Calcula frequências de horários, gatilhos e dias da semana
+  const hoursCount = {};
+  const triggersCount = {};
+  const daysCount = {};
+  const dayNames = ["Domingo", "Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado"];
+
+  history.forEach(h => {
+    if (h.timestamp) {
+      const dt = new Date(h.timestamp);
+      const hour = dt.getHours();
+      hoursCount[hour] = (hoursCount[hour] || 0) + 1;
+      
+      const day = dt.getDay();
+      daysCount[day] = (daysCount[day] || 0) + 1;
+    }
+    if (h.trigger) {
+      triggersCount[h.trigger] = (triggersCount[h.trigger] || 0) + 1;
+    }
+  });
+
+  // Ordena horários
+  const sortedHours = Object.keys(hoursCount).sort((a, b) => hoursCount[b] - hoursCount[a]).map(h => `${h}h`);
+  const topHours = sortedHours.slice(0, 3).join(", ") || "8h, 13h, 18h";
+
+  // Ordena gatilhos
+  const sortedTriggers = Object.keys(triggersCount).sort((a, b) => triggersCount[b] - triggersCount[a]);
+  const topTriggers = sortedTriggers.slice(0, 2).join(" e ") || "Estresse";
+
+  // Ordena dias da semana
+  const sortedDays = Object.keys(daysCount).sort((a, b) => daysCount[b] - daysCount[a]).map(d => dayNames[parseInt(d)]);
+  const topDays = sortedDays.slice(0, 2).join(" e ") || "Segunda-feira";
+
+  return {
+    horarios: topHours,
+    gatilhos: topTriggers,
+    diasSemana: topDays
+  };
+}
+
+/** Seleciona e ativa um modo específico do Coach de IA */
+function selectCoachMode(mode) {
+  state.coachMode = mode;
+  
+  // Atualiza botões no HTML
+  document.querySelectorAll('.coach-mode-pill').forEach(btn => {
+    btn.classList.remove('active');
+  });
+  const activePill = document.getElementById(`pill-coach-${mode}`);
+  if (activePill) activePill.classList.add('active');
+
+  // Reinicia conversa ativa do Coach
+  aiConversation = [];
+  
+  // Limpa tela do chat
+  const chat = document.getElementById('coach-chat');
+  if (chat) {
+    chat.innerHTML = '';
+  }
+
+  // Inicializa timestamps se necessário
+  if (mode === 'surf') {
+    window._surfStartTime = Date.now();
+  }
+
+  // Exibe a mensagem de boas-vindas do modo selecionado
+  let greeting = '';
+  switch (mode) {
+    case 'emergency':
+      greeting = '🚨 **Modo Emergência Ativado.** Eu estou com você. Responda-me com o que você está sentindo agora para iniciarmos a intervenção imediata.';
+      break;
+    case 'surf':
+      greeting = '🌊 **Surfar a Onda.** A fissura é como uma onda: ela sobe, atinge um pico de até 5 minutos e depois desce. Vamos atravessar esse tempo juntos. Como está a sensação física agora?';
+      break;
+    case 'autopsy':
+      greeting = '🔍 **Autópsia do Cigarro.** Sem culpa alguma, estamos aqui para aprender com o que aconteceu. Vou te fazer duas perguntas para mapearmos esse gatilho. Me diga: o que aconteceu antes de você fumar?';
+      break;
+    case 'predictor':
+      greeting = '📊 **Preditor de Fissura.** Vou analisar os seus registros históricos para antever seus maiores momentos de risco e traçar uma blindagem para as próximas horas. Escreva qualquer mensagem abaixo para ver suas previsões.';
+      break;
+    case 'xp_coach':
+      greeting = '🎮 **Coach do XP do Pulmão.** Suas estatísticas de saúde física estão sendo rastreadas como em um RPG real de recuperação. Mande uma mensagem abaixo para ver o que você já desbloqueou no corpo!';
+      break;
+    default:
+      greeting = 'Olá! Eu sou o seu Coach. Estou aqui para conversar, te motivar ou apenas te ouvir. Sobre o que quer falar hoje?';
+  }
+  
+  appendChatBubble('ai', greeting);
+  aiConversation.push({ role: 'assistant', content: greeting });
+  saveData();
+}
 
 /** Monta o system prompt contextualizado com os dados do usuario */
 function buildSystemPrompt(intensity) {
+  const mode = state.coachMode || 'general';
   const days = state.journeyStart
     ? Math.floor((Date.now() - state.journeyStart) / 86400000)
     : 0;
   const name = state.user.name || 'amigo';
-  const motive = state.user.motivation || 'ter uma vida mais saudavel';
+  const motive = state.user.motivation || 'ter uma vida mais saudável';
   const topTrig = (() => {
     const c = {};
     state.history.forEach(h => { if (h.trigger) c[h.trigger] = (c[h.trigger]||0)+1; });
     return Object.keys(c).sort((a,b)=>c[b]-c[a])[0] || null;
   })();
 
-  return `Voce � o Respira, um coach emp�tico e acolhedor especializado em cessa��o do tabagismo.
-Voce esta ajudando ${name} em tempo real durante uma crise de fissura.
+  if (mode === 'emergency') {
+    return `Você é o Respira no Modo Emergência, um interventor de crise extremamente próximo para quem está prestes a fumar agora.
+Sua missão é salvar o usuário da fissura imediata.
+Regras CRÍTICAS:
+1. Responda SEMPRE em no máximo 3 linhas de texto corrido.
+2. NUNCA use listas, marcadores (bullets), traços ou enumerações.
+3. Tom: calmo, profundamente humano, sem julgamento, falando como um amigo presente.
+4. Estrutura obrigatória para a sua resposta:
+   - Linha 1: Uma frase de acolhimento sincero (reconheça a dificuldade do momento atual).
+   - Linha 2: UMA única ação física para fazer IMEDIATAMENTE (ex: respirar fundo, beber água gelada, andar, mudar de cômodo).
+   - Linha 3: Uma frase curta de encorajamento mencionando o tempo que ele está sem fumar: "${days} dias sem fumar".
+Exemplo de resposta válida:
+"Sei que está muito difícil agora, mas eu estou com você e isso vai passar. Vá até a cozinha agora e beba um copo de água bem gelada. Você já está há ${days} dias livre do cigarro, continue firme por mais um minuto."`;
+  }
 
-Contexto do usuario:
+  if (mode === 'surf') {
+    const surfElapsedSeconds = Math.floor((Date.now() - (window._surfStartTime || Date.now())) / 1000);
+    const surfTimeLeftSeconds = Math.max(0, 300 - surfElapsedSeconds);
+    const surfTimeLeftMinutes = Math.ceil(surfTimeLeftSeconds / 60);
+
+    return `Você é o Respira no modo Surfar a Onda. Acompanhe o usuário durante uma fissura de 5 minutos, agindo como um guia de meditação.
+Tom: voz calma, de guia de meditação, frases muito curtas, nunca dê sermões.
+Regras de resposta:
+Sempre estruture suas mensagens com:
+1. Uma frase curta que normalize o que o usuário sente (ex: "isso é o seu cérebro pedindo, não você", "a vontade é uma onda física, ela sobe mas vai descer").
+2. Uma instrução simples de respiração ou atenção plena de 10 segundos (ex: "inspire por 4 segundos, sinta o ar preencher o peito", "sinta a sola dos seus pés no chão por 10 segundos").
+3. Uma menção ao tempo que resta para o pico da fissura passar. Atualmente restam aproximadamente ${surfTimeLeftMinutes} minutos (ou ${surfTimeLeftSeconds} segundos) para o pico passar. Diga isso de forma suave.
+Exemplo de resposta:
+"Essa angústia física é apenas o seu cérebro se limpando, não é você. Feche os olhos e sinta a temperatura do ar entrando pelas suas narinas por 10 segundos. O pico da onda já vai passar em menos de ${surfTimeLeftMinutes} minutos."`;
+  }
+
+  if (mode === 'autopsy') {
+    const conversationLength = aiConversation.length;
+    return `Você é o Respira no modo Autópsia do Cigarro. O usuário acabou de registrar que fumou. Seu papel é ajudá-lo a entender o gatilho sem culpa alguma. NUNCA CULPE. NUNCA GENERALIZE.
+Fase atual da autópsia: ${conversationLength <= 1 ? 'FAZER AS DUAS PERGUNTAS' : 'ENTREGAR O INSIGHT E A ESTRATÉGIA'}.
+
+Se a fase for 'FAZER AS DUAS PERGUNTAS':
+- Faça exatamente 2 perguntas muito curtas, acolhedoras e diretas para identificar:
+  1. O seu estado emocional no momento (ex: estresse, tédio, social, hábito automático).
+  2. O contexto físico (onde você estava, o que estava fazendo).
+Exemplo: "Eu entendo, acontece e estamos juntos para aprender com isso. Me conta: como você estava se sentindo emocionalmente na hora? E onde você estava e o que estava fazendo?"
+
+Se a fase for 'ENTREGAR O INSIGHT E A ESTRATÉGIA':
+- Com base nas respostas anteriores do usuário:
+  1. Entregue um insight de exatamente 2 linhas sobre o padrão identificado por ele.
+  2. Dê uma estratégia específica, prática e personalizada para neutralizar esse gatilho na próxima vez.
+Exemplo: "Entendi. O estresse do trabalho misturado com o hábito de ver outras pessoas fumando no intervalo criou a tempestade perfeita. Para a próxima vez, experimente marcar um chiclete de menta forte assim que levantar para o intervalo."`;
+  }
+
+  if (mode === 'predictor') {
+    const stats = getAIHistoryStats();
+    return `Você é o Respira no modo Preditor de Fissura. Sua função é analisar o histórico de cigarros do usuário para prever momentos de risco.
+Tom: direto, como uma notificação inteligente de risco. Máximo de 5 linhas no total para sua resposta inteira.
+Regras de estrutura da sua resposta (Siga estritamente, em no máximo 5 linhas totais de texto corrido, sem tópicos ou bullet points):
+1. Diga quais são os 3 horários de maior risco hoje baseado nos dados reais que informamos a você: ${stats.horarios}.
+2. Indique qual é o gatilho mais frequente ("${stats.gatilhos}") de forma direta, com uma frase de alerta personalizada e impactante.
+3. Entregue uma dica preventiva específica e prática para o próximo momento de risco.
+
+Exemplo de resposta:
+"Seu maior risco hoje está concentrado às ${stats.horarios}. Alerta: o '${stats.gatilhos}' nas suas segundas-feiras tem sido seu principal obstáculo para vencer o cigarro. Dica: 10 minutos antes desses horários, mude de ambiente ou comece um ciclo de respiração profunda."`;
+  }
+
+  if (mode === 'xp_coach') {
+    return `Você é o Respira no modo Coach do XP do Pulmão. Você age como o narrador de RPG da recuperação física do usuário que parou de fumar.
+Tom: empolgado, animado como um narrador de RPG, mas fundamentado em fatos científicos e reais de recuperação pulmonar.
+Informações do usuário:
+- Dias sem fumar: ${days} dias.
+Regras de estrutura da sua resposta (em formato de texto corrido ou blocos de narrador, sem listas ou bullets):
+1. Descreva em 1 frase poética e inspiradora o que está acontecendo nos pulmões do usuário neste exato momento (dia ${days}).
+2. Apresente qual "habilidade física" real e biológica foi desbloqueada no corpo dele (ex: "Habilidade Desbloqueada: Subir 2 lances de escada sem ofegar", ou "Habilidade Desbloqueada: Oxigenação máxima do cérebro"). Baseie a habilidade científica no número de dias dele (${days} dias).
+3. Dê uma prévia do próximo desbloqueio de saúde que o espera no futuro, indicando quantos dias de jornada ainda faltam para atingi-lo.
+
+Exemplo de resposta:
+"Seis bilhões de alvéolos respiram aliviados hoje. Habilidade Desbloqueada: Subir 2 lances de escada sem ofegar. O próximo marco da sua jornada é a regeneração completa da sua capacidade cardiovascular, que será desbloqueada em mais 6 dias de bravura. Siga firme!"`;
+  }
+
+  // Modo padrão (Geral)
+  return `Você é o Respira, um coach empático e acolhedor especializado em cessação do tabagismo.
+Você está ajudando ${name} em tempo real.
+
+Contexto do usuário:
 - Nome: ${name}
 - Dias sem fumar: ${days}
-- Motivacao para parar: "${motive}"
-- Crises ja vencidas: ${state.crisesWon}
+- Motivação para parar: "${motive}"
+- Crises já vencidas: ${state.crisesWon}
 ${topTrig ? `- Gatilho mais comum: ${topTrig}` : ''}
 - Intensidade atual da fissura: ${intensity || '?'}/10
 
-Regras CR�TICAS:
-1. Responda SEMPRE em portugues brasileiro, de forma calorosa, sem julgamentos.
+Regras CRÍTICAS:
+1. Responda SEMPRE em português brasileiro, de forma calorosa, sem julgamentos.
 2. Respostas curtas (max. 3 frases). Direto ao ponto.
-3. Use o nome do usuario �s vezes para personalizar.
-4. Nunca use linguagem clinica ou formal  seja humano, pr�ximo.
-5. Sugira a��es concretas: respira��o, agua gelada, sair do ambiente, ligar para alguem.
-6. Se intensidade >= 8, priorize tecnicas imediatas de grounding (5-4-3-2-1).
-7. Celebre cada vit�ria, mesmo pequena.
-8. Jamais julgue se a pessoa fumou.`;
+3. Use o nome do usuário às vezes para personalizar.
+4. Nunca use linguagem clínica ou formal - seja humano, próximo.
+5. Sugira ações concretas: respiração, água gelada, sair do ambiente, ligar para alguém.
+6. Celebre cada vitória, mesmo pequena.
+7. Jamais julgue se a pessoa fumou.`;
 }
 
 /** Envia mensagem do usuario para a IA e exibe resposta */

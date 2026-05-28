@@ -1,4 +1,4 @@
-﻿const BUDDY_API_BASE = '/api/buddy';
+const BUDDY_API_BASE = '/api/buddy';
 
 function formatBuddyDuration(minutes) {
   if (minutes == null) return 'Ainda sem data definida';
@@ -110,6 +110,17 @@ function useBuddyConnection() {
     }
   };
 
+  // Lê o body como JSON com segurança — se vier HTML (ex: erro do Supabase), retorna erro claro.
+  const safeJson = async (res) => {
+    const text = await res.text();
+    try {
+      return JSON.parse(text);
+    } catch {
+      console.error('[Buddy API] Resposta inesperada (não é JSON):', text.substring(0, 300));
+      return { error: 'Serviço temporariamente indisponível. Tente novamente em instantes.' };
+    }
+  };
+
   const authHeaders = async () => {
     const sb = window.RespiraSupabase?.client || window.__RESPIRA_SB_CLIENT;
     if (!sb) throw new Error('Supabase nao foi iniciado. Recarregue a pagina e faca login novamente.');
@@ -123,7 +134,7 @@ function useBuddyConnection() {
     state.isLoading = true;
     try {
       const res = await fetchWithTimeout(`${BUDDY_API_BASE}/me`, { headers: await authHeaders() });
-      const data = await res.json();
+      const data = await safeJson(res);
       if (!res.ok) throw new Error(data?.error || 'Falha ao carregar parceiro');
       state.connection = data.connection || null;
       state.buddy = data.buddy || null;
@@ -160,7 +171,7 @@ function useBuddyConnection() {
 
   const generateInvite = async () => {
     const res = await fetchWithTimeout(`${BUDDY_API_BASE}/invite`, { method: 'POST', headers: await authHeaders() });
-    const data = await res.json();
+    const data = await safeJson(res);
     if (!res.ok) throw new Error(data.error || 'Falha ao gerar convite');
     state.inviteCode = data.invite_code;
     state.inviteExpiresAt = data.expires_at;
@@ -169,7 +180,7 @@ function useBuddyConnection() {
 
   const acceptInvite = async (code) => {
     const res = await fetchWithTimeout(`${BUDDY_API_BASE}/accept`, { method: 'POST', headers: await authHeaders(), body: JSON.stringify({ invite_code: code }) });
-    const data = await res.json();
+    const data = await safeJson(res);
     if (!res.ok) throw new Error(data.error || 'Falha ao aceitar convite');
     await refreshMe();
     buddyMilestoneToast(`${data.buddy?.display_name || 'Seu parceiro'} aceitou a conexao!`);
@@ -179,7 +190,7 @@ function useBuddyConnection() {
   const endConnection = async () => {
     if (!confirm('Deseja encerrar a conexao com seu parceiro?')) return;
     const res = await fetch(`${BUDDY_API_BASE}/me`, { method: 'DELETE', headers: await authHeaders() });
-    const data = await res.json();
+    const data = await safeJson(res);
     if (!res.ok) throw new Error(data.error || 'Falha ao encerrar');
     state.connection = null;
     state.buddy = null;

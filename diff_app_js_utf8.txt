@@ -1,0 +1,421 @@
+﻿diff --git a/respira/app.js b/respira/app.js
+index 9d25ff5..1d11fe0 100644
+--- a/respira/app.js
++++ b/respira/app.js
+@@ -1,4 +1,4 @@
+-´╗┐// app.js  Respira v3 (com IA)
++// app.js  Respira v3 (com IA)
+ // 
+ // ESTADO GLOBAL
+ // 
+@@ -30,23 +30,23 @@ let state = {
+ // 
+ // ESTADO DA IA
+ // 
+-let aiConversation = []; // hist´┐¢rico da sess´┐¢o de crise
++let aiConversation = []; // histrico da sesso de crise
+ let aiTyping = false;
+ let milestoneMinuteTimer = null;
+ let milestoneTimeouts = [];
+ let heroOrbEngine = null;
+ 
+ //  Proxy URL  Edge Function do Supabase 
+-// A chave da IA fica NO SERVIDOR (vari´┐¢vel de ambiente do Supabase).
+-// Os usuarios nunca veem a chave. Altere a URL abaixo ap´┐¢s criar a fun´┐¢´┐¢o.
+-const AI_PROXY_URL = `${SUPABASE_URL}/functions/v1/quick-responder`;
++// A chave da IA fica NO SERVIDOR (varivel de ambiente do Supabase).
++// Os usuarios nunca veem a chave. Altere a URL abaixo aps criar a funo.
++const AI_PROXY_URL = `${SUPABASE_URL}/functions/v1/ai-proxy`;
+ 
+ function hasAI() {
+-  return true; // IA sempre dispon´┐¢vel via proxy
++  return true; // IA sempre dispon├¡vel via proxy
+ }
+ 
+ // 
+-// INICIALIZA!´┐¢O
++// INICIALIZA├ç├âO
+ // 
+ document.addEventListener('DOMContentLoaded', () => {
+   showScreen('loading');
+@@ -290,6 +290,54 @@ function initHeroOrb() {
+   };
+   buildParticles();
+ 
++  // Touch trail effect
++  const trailPool = [];
++  const TRAIL_MAX = 8;
++  const trailHost = document.createElement('div');
++  trailHost.className = 'hero-trail-host';
++  trailHost.style.cssText = 'position:absolute;inset:0;border-radius:50%;pointer-events:none;overflow:hidden;';
++  orb.appendChild(trailHost);
++
++  for (let i = 0; i < TRAIL_MAX; i++) {
++    const dot = document.createElement('span');
++    dot.style.cssText = `
++      position:absolute;width:6px;height:6px;border-radius:50%;
++      background:radial-gradient(circle,rgba(200,248,255,0.8),rgba(126,227,214,0.2) 60%,transparent);
++      opacity:0;pointer-events:none;transition:opacity 0.6s ease;
++      filter:blur(1.5px);transform:translate(-50%,-50%);
++    `;
++    trailHost.appendChild(dot);
++    trailPool.push({ el: dot, x: 0, y: 0, life: 0 });
++  }
++
++  let trailIndex = 0;
++  let lastTrailTime = 0;
++  const spawnTrail = (x, y) => {
++    const now = performance.now();
++    if (now - lastTrailTime < 60) return; // throttle
++    lastTrailTime = now;
++    const rect = orb.getBoundingClientRect();
++    const lx = x - rect.left;
++    const ly = y - rect.top;
++    const dot = trailPool[trailIndex % TRAIL_MAX];
++    dot.el.style.left = `${lx}px`;
++    dot.el.style.top = `${ly}px`;
++    dot.el.style.opacity = '0.7';
++    dot.life = 1;
++    trailIndex++;
++  };
++
++  // Decay trail in tick
++  const decayTrails = () => {
++    trailPool.forEach(dot => {
++      if (dot.life > 0) {
++        dot.life -= 0.025;
++        dot.el.style.opacity = Math.max(0, dot.life * 0.7).toFixed(3);
++        if (dot.life <= 0) dot.el.style.opacity = '0';
++      }
++    });
++  };
++
+   const setPhaseDurations = () => {
+     const pace = engine.adaptivePace;
+     phases.inhale.duration = Math.round(3900 * pace);
+@@ -476,12 +524,45 @@ function initHeroOrb() {
+   orb.addEventListener('pointermove', evt => {
+     if (engine.pointerId !== evt.pointerId || !engine.press) return;
+     updatePointerInfluence(evt);
++    spawnTrail(evt.clientX, evt.clientY);
+     if (Math.abs(engine.orbitValue) < 0.16) engine.cycleQuality = clamp(engine.cycleQuality - 0.003, 0, 1);
+     else engine.cycleQuality = clamp(engine.cycleQuality + 0.004, 0, 1);
+   });
+ 
+   ['pointerup', 'pointercancel', 'pointerleave'].forEach(evt => orb.addEventListener(evt, releasePointer));
+ 
++  // Gyroscope support for natural tilt
++  const initGyroscope = () => {
++    let gyroActive = false;
++    const handleOrientation = (evt) => {
++      if (!gyroActive) gyroActive = true;
++      const beta = evt.beta || 0;   // front-back tilt (-180 to 180)
++      const gamma = evt.gamma || 0; // left-right tilt (-90 to 90)
++      // Only apply subtle influence when not actively touching
++      if (!engine.press) {
++        engine.tiltX = clamp(engine.tiltX * 0.88 + (-beta * 0.06) * 0.12, -6, 6);
++        engine.tiltY = clamp(engine.tiltY * 0.88 + (gamma * 0.08) * 0.12, -8, 8);
++        engine.focus = clamp(engine.focus * 0.92 + (Math.abs(beta) + Math.abs(gamma)) * 0.0008, 0, 0.3);
++      }
++    };
++
++    if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
++      // iOS 13+ requires permission
++      orb.addEventListener('click', () => {
++        if (gyroActive) return;
++        DeviceOrientationEvent.requestPermission()
++          .then(response => {
++            if (response === 'granted') {
++              window.addEventListener('deviceorientation', handleOrientation, true);
++            }
++          }).catch(() => {});
++      }, { once: true });
++    } else if ('DeviceOrientationEvent' in window) {
++      window.addEventListener('deviceorientation', handleOrientation, true);
++    }
++  };
++  initGyroscope();
++
+   setPhase(phases.idle);
+   setPhaseDurations();
+   setMood('calm');
+@@ -568,14 +649,37 @@ function initHeroOrb() {
+     updateSubLabel();
+ 
+     engine.particles.forEach((p, i) => {
+-      const angle = p.baseAngle + (now * 0.008 * (i % 2 ? 1 : -1)) + (engine.orbitValue * 140);
+-      const breathOffset = Math.sin((now * 0.0015) + i) * (2 + engine.progress * 2.5);
+-      const radius = p.radius + breathOffset - (engine.chaos * 7);
+-      const alpha = clamp(p.alpha + engine.progress * 0.22 - engine.chaos * 0.18 + engine.orbitInfluence * 0.12, 0.08, 0.72);
++      // Gravitational pull toward center (stronger when calm)
++      const gravityPull = (1 - engine.chaos) * 3.5;
++      const baseRadius = p.radius - gravityPull;
++      
++      // Organic orbital motion with figure-8 influence
++      const speed = 0.006 + engine.calm * 0.003;
++      const figure8 = Math.sin(now * speed * 0.7 + i * 1.3) * 4.5;
++      const angle = p.baseAngle + (now * speed * (i % 2 ? 1 : -1)) + (engine.orbitValue * 140) + figure8;
++      
++      // Breathing-synced radial oscillation
++      const breathOffset = Math.sin((now * 0.0015) + i * 0.9) * (2.5 + engine.progress * 3);
++      const pulseOffset = Math.sin(now * 0.002 + i * 0.5) * (engine.bond * 2.5);
++      const radius = clamp(baseRadius + breathOffset + pulseOffset - (engine.chaos * 6), 28, 108);
++      
++      // Dynamic alpha with flicker
++      const flicker = Math.sin(now * 0.004 + i * 2.1) * 0.06;
++      const bondGlow = engine.bond * 0.18;
++      const alpha = clamp(
++        p.alpha + engine.progress * 0.24 - engine.chaos * 0.16 + engine.orbitInfluence * 0.14 + bondGlow + flicker,
++        0.06, 0.78
++      );
++      
++      // Dynamic size based on distance from center
++      const sizeScale = clamp(0.7 + (radius / 100) * 0.6 + engine.breath * 0.15, 0.5, 1.6);
++      
+       p.el.style.setProperty('--p-angle', `${angle.toFixed(2)}deg`);
+       p.el.style.setProperty('--p-radius', `${radius.toFixed(2)}px`);
+       p.el.style.setProperty('--p-alpha', alpha.toFixed(3));
++      p.el.style.setProperty('--p-size', sizeScale.toFixed(3));
+     });
++    decayTrails();
+     requestAnimationFrame(tick);
+   };
+   requestAnimationFrame(tick);
+@@ -1616,42 +1720,222 @@ function burstConfetti() {
+ }
+ 
+ // 
+-// IA  GROQ API
++// IA ÔÇö GROQ API
+ // 
+ 
++/** Analisa o hist├│rico real de cigarros para prever riscos no Modo Preditor */
++function getAIHistoryStats() {
++  const history = state.history || [];
++  
++  if (history.length === 0) {
++    return {
++      horarios: "8h, 13h, 18h",
++      gatilhos: "Estresse e Caf├®",
++      diasSemana: "Segunda-feira e Sexta-feira"
++    };
++  }
++
++  // Calcula frequ├¬ncias de hor├írios, gatilhos e dias da semana
++  const hoursCount = {};
++  const triggersCount = {};
++  const daysCount = {};
++  const dayNames = ["Domingo", "Segunda-feira", "Ter├ºa-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "S├íbado"];
++
++  history.forEach(h => {
++    if (h.timestamp) {
++      const dt = new Date(h.timestamp);
++      const hour = dt.getHours();
++      hoursCount[hour] = (hoursCount[hour] || 0) + 1;
++      
++      const day = dt.getDay();
++      daysCount[day] = (daysCount[day] || 0) + 1;
++    }
++    if (h.trigger) {
++      triggersCount[h.trigger] = (triggersCount[h.trigger] || 0) + 1;
++    }
++  });
++
++  // Ordena hor├írios
++  const sortedHours = Object.keys(hoursCount).sort((a, b) => hoursCount[b] - hoursCount[a]).map(h => `${h}h`);
++  const topHours = sortedHours.slice(0, 3).join(", ") || "8h, 13h, 18h";
++
++  // Ordena gatilhos
++  const sortedTriggers = Object.keys(triggersCount).sort((a, b) => triggersCount[b] - triggersCount[a]);
++  const topTriggers = sortedTriggers.slice(0, 2).join(" e ") || "Estresse";
++
++  // Ordena dias da semana
++  const sortedDays = Object.keys(daysCount).sort((a, b) => daysCount[b] - daysCount[a]).map(d => dayNames[parseInt(d)]);
++  const topDays = sortedDays.slice(0, 2).join(" e ") || "Segunda-feira";
++
++  return {
++    horarios: topHours,
++    gatilhos: topTriggers,
++    diasSemana: topDays
++  };
++}
++
++/** Seleciona e ativa um modo espec├¡fico do Coach de IA */
++function selectCoachMode(mode) {
++  state.coachMode = mode;
++  
++  // Atualiza bot├Áes no HTML
++  document.querySelectorAll('.coach-mode-pill').forEach(btn => {
++    btn.classList.remove('active');
++  });
++  const activePill = document.getElementById(`pill-coach-${mode}`);
++  if (activePill) activePill.classList.add('active');
++
++  // Reinicia conversa ativa do Coach
++  aiConversation = [];
++  
++  // Limpa tela do chat
++  const chat = document.getElementById('coach-chat');
++  if (chat) {
++    chat.innerHTML = '';
++  }
++
++  // Inicializa timestamps se necess├írio
++  if (mode === 'surf') {
++    window._surfStartTime = Date.now();
++  }
++
++  // Exibe a mensagem de boas-vindas do modo selecionado
++  let greeting = '';
++  switch (mode) {
++    case 'emergency':
++      greeting = '­ƒÜ¿ **Modo Emerg├¬ncia Ativado.** Eu estou com voc├¬. Responda-me com o que voc├¬ est├í sentindo agora para iniciarmos a interven├º├úo imediata.';
++      break;
++    case 'surf':
++      greeting = '­ƒîè **Surfar a Onda.** A fissura ├® como uma onda: ela sobe, atinge um pico de at├® 5 minutos e depois desce. Vamos atravessar esse tempo juntos. Como est├í a sensa├º├úo f├¡sica agora?';
++      break;
++    case 'autopsy':
++      greeting = '­ƒöì **Aut├│psia do Cigarro.** Sem culpa alguma, estamos aqui para aprender com o que aconteceu. Vou te fazer duas perguntas para mapearmos esse gatilho. Me diga: o que aconteceu antes de voc├¬ fumar?';
++      break;
++    case 'predictor':
++      greeting = '­ƒôè **Preditor de Fissura.** Vou analisar os seus registros hist├│ricos para antever seus maiores momentos de risco e tra├ºar uma blindagem para as pr├│ximas horas. Escreva qualquer mensagem abaixo para ver suas previs├Áes.';
++      break;
++    case 'xp_coach':
++      greeting = '­ƒÄ« **Coach do XP do Pulm├úo.** Suas estat├¡sticas de sa├║de f├¡sica est├úo sendo rastreadas como em um RPG real de recupera├º├úo. Mande uma mensagem abaixo para ver o que voc├¬ j├í desbloqueou no corpo!';
++      break;
++    default:
++      greeting = 'Ol├í! Eu sou o seu Coach. Estou aqui para conversar, te motivar ou apenas te ouvir. Sobre o que quer falar hoje?';
++  }
++  
++  appendChatBubble('ai', greeting);
++  aiConversation.push({ role: 'assistant', content: greeting });
++  saveData();
++}
++
+ /** Monta o system prompt contextualizado com os dados do usuario */
+ function buildSystemPrompt(intensity) {
++  const mode = state.coachMode || 'general';
+   const days = state.journeyStart
+     ? Math.floor((Date.now() - state.journeyStart) / 86400000)
+     : 0;
+   const name = state.user.name || 'amigo';
+-  const motive = state.user.motivation || 'ter uma vida mais saudavel';
++  const motive = state.user.motivation || 'ter uma vida mais saud├ível';
+   const topTrig = (() => {
+     const c = {};
+     state.history.forEach(h => { if (h.trigger) c[h.trigger] = (c[h.trigger]||0)+1; });
+     return Object.keys(c).sort((a,b)=>c[b]-c[a])[0] || null;
+   })();
+ 
+-  return `Voce ´┐¢ o Respira, um coach emp´┐¢tico e acolhedor especializado em cessa´┐¢´┐¢o do tabagismo.
+-Voce esta ajudando ${name} em tempo real durante uma crise de fissura.
++  if (mode === 'emergency') {
++    return `Voc├¬ ├® o Respira no Modo Emerg├¬ncia, um interventor de crise extremamente pr├│ximo para quem est├í prestes a fumar agora.
++Sua miss├úo ├® salvar o usu├írio da fissura imediata.
++Regras CR├ìTICAS:
++1. Responda SEMPRE em no m├íximo 3 linhas de texto corrido.
++2. NUNCA use listas, marcadores (bullets), tra├ºos ou enumera├º├Áes.
++3. Tom: calmo, profundamente humano, sem julgamento, falando como um amigo presente.
++4. Estrutura obrigat├│ria para a sua resposta:
++   - Linha 1: Uma frase de acolhimento sincero (reconhe├ºa a dificuldade do momento atual).
++   - Linha 2: UMA ├║nica a├º├úo f├¡sica para fazer IMEDIATAMENTE (ex: respirar fundo, beber ├ígua gelada, andar, mudar de c├┤modo).
++   - Linha 3: Uma frase curta de encorajamento mencionando o tempo que ele est├í sem fumar: "${days} dias sem fumar".
++Exemplo de resposta v├ílida:
++"Sei que est├í muito dif├¡cil agora, mas eu estou com voc├¬ e isso vai passar. V├í at├® a cozinha agora e beba um copo de ├ígua bem gelada. Voc├¬ j├í est├í h├í ${days} dias livre do cigarro, continue firme por mais um minuto."`;
++  }
++
++  if (mode === 'surf') {
++    const surfElapsedSeconds = Math.floor((Date.now() - (window._surfStartTime || Date.now())) / 1000);
++    const surfTimeLeftSeconds = Math.max(0, 300 - surfElapsedSeconds);
++    const surfTimeLeftMinutes = Math.ceil(surfTimeLeftSeconds / 60);
++
++    return `Voc├¬ ├® o Respira no modo Surfar a Onda. Acompanhe o usu├írio durante uma fissura de 5 minutos, agindo como um guia de medita├º├úo.
++Tom: voz calma, de guia de medita├º├úo, frases muito curtas, nunca d├¬ serm├Áes.
++Regras de resposta:
++Sempre estruture suas mensagens com:
++1. Uma frase curta que normalize o que o usu├írio sente (ex: "isso ├® o seu c├®rebro pedindo, n├úo voc├¬", "a vontade ├® uma onda f├¡sica, ela sobe mas vai descer").
++2. Uma instru├º├úo simples de respira├º├úo ou aten├º├úo plena de 10 segundos (ex: "inspire por 4 segundos, sinta o ar preencher o peito", "sinta a sola dos seus p├®s no ch├úo por 10 segundos").
++3. Uma men├º├úo ao tempo que resta para o pico da fissura passar. Atualmente restam aproximadamente ${surfTimeLeftMinutes} minutos (ou ${surfTimeLeftSeconds} segundos) para o pico passar. Diga isso de forma suave.
++Exemplo de resposta:
++"Essa ang├║stia f├¡sica ├® apenas o seu c├®rebro se limpando, n├úo ├® voc├¬. Feche os olhos e sinta a temperatura do ar entrando pelas suas narinas por 10 segundos. O pico da onda j├í vai passar em menos de ${surfTimeLeftMinutes} minutos."`;
++  }
++
++  if (mode === 'autopsy') {
++    const conversationLength = aiConversation.length;
++    return `Voc├¬ ├® o Respira no modo Aut├│psia do Cigarro. O usu├írio acabou de registrar que fumou. Seu papel ├® ajud├í-lo a entender o gatilho sem culpa alguma. NUNCA CULPE. NUNCA GENERALIZE.
++Fase atual da aut├│psia: ${conversationLength <= 1 ? 'FAZER AS DUAS PERGUNTAS' : 'ENTREGAR O INSIGHT E A ESTRAT├ëGIA'}.
++
++Se a fase for 'FAZER AS DUAS PERGUNTAS':
++- Fa├ºa exatamente 2 perguntas muito curtas, acolhedoras e diretas para identificar:
++  1. O seu estado emocional no momento (ex: estresse, t├®dio, social, h├íbito autom├ítico).
++  2. O contexto f├¡sico (onde voc├¬ estava, o que estava fazendo).
++Exemplo: "Eu entendo, acontece e estamos juntos para aprender com isso. Me conta: como voc├¬ estava se sentindo emocionalmente na hora? E onde voc├¬ estava e o que estava fazendo?"
++
++Se a fase for 'ENTREGAR O INSIGHT E A ESTRAT├ëGIA':
++- Com base nas respostas anteriores do usu├írio:
++  1. Entregue um insight de exatamente 2 linhas sobre o padr├úo identificado por ele.
++  2. D├¬ uma estrat├®gia espec├¡fica, pr├ítica e personalizada para neutralizar esse gatilho na pr├│xima vez.
++Exemplo: "Entendi. O estresse do trabalho misturado com o h├íbito de ver outras pessoas fumando no intervalo criou a tempestade perfeita. Para a pr├│xima vez, experimente marcar um chiclete de menta forte assim que levantar para o intervalo."`;
++  }
++
++  if (mode === 'predictor') {
++    const stats = getAIHistoryStats();
++    return `Voc├¬ ├® o Respira no modo Preditor de Fissura. Sua fun├º├úo ├® analisar o hist├│rico de cigarros do usu├írio para prever momentos de risco.
++Tom: direto, como uma notifica├º├úo inteligente de risco. M├íximo de 5 linhas no total para sua resposta inteira.
++Regras de estrutura da sua resposta (Siga estritamente, em no m├íximo 5 linhas totais de texto corrido, sem t├│picos ou bullet points):
++1. Diga quais s├úo os 3 hor├írios de maior risco hoje baseado nos dados reais que informamos a voc├¬: ${stats.horarios}.
++2. Indique qual ├® o gatilho mais frequente ("${stats.gatilhos}") de forma direta, com uma frase de alerta personalizada e impactante.
++3. Entregue uma dica preventiva espec├¡fica e pr├ítica para o pr├│ximo momento de risco.
++
++Exemplo de resposta:
++"Seu maior risco hoje est├í concentrado ├ás ${stats.horarios}. Alerta: o '${stats.gatilhos}' nas suas segundas-feiras tem sido seu principal obst├ículo para vencer o cigarro. Dica: 10 minutos antes desses hor├írios, mude de ambiente ou comece um ciclo de respira├º├úo profunda."`;
++  }
++
++  if (mode === 'xp_coach') {
++    return `Voc├¬ ├® o Respira no modo Coach do XP do Pulm├úo. Voc├¬ age como o narrador de RPG da recupera├º├úo f├¡sica do usu├írio que parou de fumar.
++Tom: empolgado, animado como um narrador de RPG, mas fundamentado em fatos cient├¡ficos e reais de recupera├º├úo pulmonar.
++Informa├º├Áes do usu├írio:
++- Dias sem fumar: ${days} dias.
++Regras de estrutura da sua resposta (em formato de texto corrido ou blocos de narrador, sem listas ou bullets):
++1. Descreva em 1 frase po├®tica e inspiradora o que est├í acontecendo nos pulm├Áes do usu├írio neste exato momento (dia ${days}).
++2. Apresente qual "habilidade f├¡sica" real e biol├│gica foi desbloqueada no corpo dele (ex: "Habilidade Desbloqueada: Subir 2 lances de escada sem ofegar", ou "Habilidade Desbloqueada: Oxigena├º├úo m├íxima do c├®rebro"). Baseie a habilidade cient├¡fica no n├║mero de dias dele (${days} dias).
++3. D├¬ uma pr├®via do pr├│ximo desbloqueio de sa├║de que o espera no futuro, indicando quantos dias de jornada ainda faltam para atingi-lo.
++
++Exemplo de resposta:
++"Seis bilh├Áes de alv├®olos respiram aliviados hoje. Habilidade Desbloqueada: Subir 2 lances de escada sem ofegar. O pr├│ximo marco da sua jornada ├® a regenera├º├úo completa da sua capacidade cardiovascular, que ser├í desbloqueada em mais 6 dias de bravura. Siga firme!"`;
++  }
++
++  // Modo padr├úo (Geral)
++  return `Voc├¬ ├® o Respira, um coach emp├ítico e acolhedor especializado em cessa├º├úo do tabagismo.
++Voc├¬ est├í ajudando ${name} em tempo real.
+ 
+-Contexto do usuario:
++Contexto do usu├írio:
+ - Nome: ${name}
+ - Dias sem fumar: ${days}
+-- Motivacao para parar: "${motive}"
+-- Crises ja vencidas: ${state.crisesWon}
++- Motiva├º├úo para parar: "${motive}"
++- Crises j├í vencidas: ${state.crisesWon}
+ ${topTrig ? `- Gatilho mais comum: ${topTrig}` : ''}
+ - Intensidade atual da fissura: ${intensity || '?'}/10
+ 
+-Regras CR´┐¢TICAS:
+-1. Responda SEMPRE em portugues brasileiro, de forma calorosa, sem julgamentos.
++Regras CR├ìTICAS:
++1. Responda SEMPRE em portugu├¬s brasileiro, de forma calorosa, sem julgamentos.
+ 2. Respostas curtas (max. 3 frases). Direto ao ponto.
+-3. Use o nome do usuario ´┐¢s vezes para personalizar.
+-4. Nunca use linguagem clinica ou formal  seja humano, pr´┐¢ximo.
+-5. Sugira a´┐¢´┐¢es concretas: respira´┐¢´┐¢o, agua gelada, sair do ambiente, ligar para alguem.
+-6. Se intensidade >= 8, priorize tecnicas imediatas de grounding (5-4-3-2-1).
+-7. Celebre cada vit´┐¢ria, mesmo pequena.
+-8. Jamais julgue se a pessoa fumou.`;
++3. Use o nome do usu├írio ├ás vezes para personalizar.
++4. Nunca use linguagem cl├¡nica ou formal - seja humano, pr├│ximo.
++5. Sugira a├º├Áes concretas: respira├º├úo, ├ígua gelada, sair do ambiente, ligar para algu├®m.
++6. Celebre cada vit├│ria, mesmo pequena.
++7. Jamais julgue se a pessoa fumou.`;
+ }
+ 
+ /** Envia mensagem do usuario para a IA e exibe resposta */

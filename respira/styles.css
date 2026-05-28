@@ -1465,3 +1465,49 @@ input:focus, textarea:focus {
   .hero-orb-sub { font-size: 0.84rem; }
 }
 
+/* PREMIUM COACH MODE PILLS */
+.coach-mode-pill:hover {
+  background: rgba(255,255,255,0.08) !important;
+  transform: translateY(-1px);
+}
+.coach-mode-pill:active {
+  transform: translateY(1px);
+}
+#pill-coach-general.active {
+  background: linear-gradient(135deg, var(--primary), var(--secondary)) !important;
+  color: white !important;
+  border-color: transparent !important;
+  box-shadow: 0 4px 14px var(--primary-glow);
+}
+#pill-coach-emergency.active {
+  background: linear-gradient(135deg, #EF4444, #B91C1C) !important;
+  color: white !important;
+  border-color: transparent !important;
+  box-shadow: 0 4px 14px rgba(239,68,68,0.4);
+}
+#pill-coach-surf.active {
+  background: linear-gradient(135deg, #3B82F6, #1D4ED8) !important;
+  color: white !important;
+  border-color: transparent !important;
+  box-shadow: 0 4px 14px rgba(59,130,246,0.4);
+}
+#pill-coach-autopsy.active {
+  background: linear-gradient(135deg, #F59E0B, #B45309) !important;
+  color: white !important;
+  border-color: transparent !important;
+  box-shadow: 0 4px 14px rgba(245,158,11,0.4);
+}
+#pill-coach-predictor.active {
+  background: linear-gradient(135deg, #10B981, #047857) !important;
+  color: white !important;
+  border-color: transparent !important;
+  box-shadow: 0 4px 14px rgba(16,185,129,0.4);
+}
+#pill-coach-xp_coach.active {
+  background: linear-gradient(135deg, #8B5CF6, #6D28D9) !important;
+  color: white !important;
+  border-color: transparent !important;
+  box-shadow: 0 4px 14px rgba(139,92,246,0.4);
+}
+
+

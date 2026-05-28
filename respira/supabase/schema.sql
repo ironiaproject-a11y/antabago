@@ -67,18 +67,22 @@ alter table public.user_presence enable row level security;
 alter table public.buddy_live_state enable row level security;
 
 -- RLS buddy_connections
-create policy if not exists "buddy_select_own" on public.buddy_connections
+drop policy if exists "buddy_select_own" on public.buddy_connections;
+create policy "buddy_select_own" on public.buddy_connections
 for select using (auth.uid() = requester_id or auth.uid() = receiver_id);
 
-create policy if not exists "buddy_insert_requester" on public.buddy_connections
+drop policy if exists "buddy_insert_requester" on public.buddy_connections;
+create policy "buddy_insert_requester" on public.buddy_connections
 for insert with check (auth.uid() = requester_id);
 
-create policy if not exists "buddy_update_members" on public.buddy_connections
+drop policy if exists "buddy_update_members" on public.buddy_connections;
+create policy "buddy_update_members" on public.buddy_connections
 for update using (auth.uid() = requester_id or auth.uid() = receiver_id)
 with check (auth.uid() = requester_id or auth.uid() = receiver_id);
 
 -- RLS user_presence
-create policy if not exists "presence_select_self_or_active_buddy" on public.user_presence
+drop policy if exists "presence_select_self_or_active_buddy" on public.user_presence;
+create policy "presence_select_self_or_active_buddy" on public.user_presence
 for select using (
   auth.uid() = user_id or exists (
     select 1 from public.buddy_connections bc
@@ -90,11 +94,13 @@ for select using (
   )
 );
 
-create policy if not exists "presence_upsert_self" on public.user_presence
+drop policy if exists "presence_upsert_self" on public.user_presence;
+create policy "presence_upsert_self" on public.user_presence
 for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
 -- RLS buddy_live_state
-create policy if not exists "live_select_self_or_active_buddy" on public.buddy_live_state
+drop policy if exists "live_select_self_or_active_buddy" on public.buddy_live_state;
+create policy "live_select_self_or_active_buddy" on public.buddy_live_state
 for select using (
   auth.uid() = user_id or exists (
     select 1 from public.buddy_connections bc
@@ -106,7 +112,8 @@ for select using (
   )
 );
 
-create policy if not exists "live_upsert_self" on public.buddy_live_state
+drop policy if exists "live_upsert_self" on public.buddy_live_state;
+create policy "live_upsert_self" on public.buddy_live_state
 for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
 alter publication supabase_realtime add table public.user_presence;
@@ -127,14 +134,18 @@ create table if not exists public.push_subscriptions (
 
 alter table public.push_subscriptions enable row level security;
 
-create policy if not exists "push_select_own" on public.push_subscriptions
+drop policy if exists "push_select_own" on public.push_subscriptions;
+create policy "push_select_own" on public.push_subscriptions
 for select using (auth.uid() = user_id);
 
-create policy if not exists "push_insert_own" on public.push_subscriptions
+drop policy if exists "push_insert_own" on public.push_subscriptions;
+create policy "push_insert_own" on public.push_subscriptions
 for insert with check (auth.uid() = user_id);
 
-create policy if not exists "push_update_own" on public.push_subscriptions
+drop policy if exists "push_update_own" on public.push_subscriptions;
+create policy "push_update_own" on public.push_subscriptions
 for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
-create policy if not exists "push_delete_own" on public.push_subscriptions
+drop policy if exists "push_delete_own" on public.push_subscriptions;
+create policy "push_delete_own" on public.push_subscriptions
 for delete using (auth.uid() = user_id);

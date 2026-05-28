@@ -6,6 +6,7 @@ const ASSETS = [
   './app.js',
   './buddy.js',
   './supabase.js',
+  './milestones.js',
   './manifest.json'
 ];
 

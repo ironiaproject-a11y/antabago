@@ -2,8 +2,6 @@
 // A chave da IA fica aqui no servidor. O frontend nunca vê a chave.
 // Deploy: Supabase Dashboard → Edge Functions → New Function → cole este código
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-
 // ─── CORS — permite chamadas do seu app ───────────────────────────────────
 const CORS = {
   "Access-Control-Allow-Origin":  "*",   // troque "*" pelo seu domínio em produção
@@ -11,7 +9,7 @@ const CORS = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   // Preflight CORS
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: CORS });

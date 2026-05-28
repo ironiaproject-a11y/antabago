@@ -1,4 +1,4 @@
-﻿const http = require('http');
+const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
@@ -42,15 +42,19 @@ async function proxyBuddyRequest(req, res) {
     return;
   }
 
-  const upstreamUrl = `https://xxmwotnhfhxwhepermlq.supabase.co/functions/v1/dynamic-endpoint${req.url.replace(/^\/api/, '')}`;
+  const upstreamUrl = `https://xxmwotnhfhxwhepermlq.supabase.co/functions/v1/buddy-api${req.url.replace(/^\/api/, '')}`;
+  console.log(`[Proxy Request] ${req.method} ${req.url} -> ${upstreamUrl}`);
   const body = await readRequestBody(req);
   const headers = {
-    'Content-Type': req.headers['content-type'] || 'application/json'
+    'Content-Type': req.headers['content-type'] || 'application/json',
+    'apikey': 'sb_publishable_haWdgd_VjxIq70BK8JE7_w_gaGwu0ia'
   };
 
   if (req.headers.authorization) {
     headers.Authorization = req.headers.authorization;
-    headers.apikey = req.headers.authorization.replace(/^Bearer\s+/i, '');
+    console.log(`[Proxy Auth] Token prefix: ${req.headers.authorization.substring(0, 20)}...`);
+  } else {
+    console.log(`[Proxy Auth] No authorization header found`);
   }
 
   try {
@@ -60,12 +64,14 @@ async function proxyBuddyRequest(req, res) {
       body: body.length ? body : undefined
     });
     const text = await upstream.text();
+    console.log(`[Proxy Response] Status: ${upstream.status}, Body: ${text}`);
     res.writeHead(upstream.status, {
       'Content-Type': upstream.headers.get('content-type') || 'application/json',
       'Cache-Control': 'no-store'
     });
     res.end(text);
   } catch (error) {
+    console.error(`[Proxy Error] ${error.message}`);
     res.writeHead(502, { 'Content-Type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify({ error: 'Falha ao acessar buddy-api', detail: String(error.message || error) }));
   }
