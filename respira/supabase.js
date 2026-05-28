@@ -16,7 +16,15 @@ let _otpEmail = ''; // guarda o e-mail para o passo 2
 // compatibilidade total com app.js
 // 
 function initFirebase(onReady) {
-  // Timeout de seguran�a: se demorar mais de 5s, vai para login
+  // Verificar bypass do usuário de teste
+  const mockUserStr = localStorage.getItem('respira_mock_user');
+  if (mockUserStr) {
+    currentUser = JSON.parse(mockUserStr);
+    onReady(currentUser);
+    return;
+  }
+
+  // Timeout de segurança: se demorar mais de 5s, vai para login
   let _called = false;
   const _safeCall = (user) => {
     if (_called) return;
@@ -54,30 +62,27 @@ function initFirebase(onReady) {
 }
 
 // 
-// PASSO 1  Envia c�digo OTP para o e-mail
+// PASSO 1  Envia cdigo OTP para o e-mail
 // 
 async function sendOTP() {
   const emailInput = document.getElementById('login-email');
   const email = emailInput?.value?.trim().toLowerCase();
 
   if (!email || !email.includes('@') || !email.includes('.')) {
-    showLoginError('Digite um e-mail v�lido.');
+    showLoginError('Digite um e-mail vlido.');
     return;
   }
 
-  // Bypass para testes / demonstra��o local
+  // Bypass para testes / demonstração local
   if (email === 'teste@respira.app') {
     currentUser = { id: 'local-test-user', email: 'teste@respira.app' };
-    document.getElementById('screen-login').classList.remove('active');
-    if (typeof initFirebase === 'function') {
-      // For�a a recarga para o app.js pegar o currentUser e ir pra Home
-      location.reload();
-    }
+    localStorage.setItem('respira_mock_user', JSON.stringify(currentUser));
+    location.reload();
     return;
   }
 
   const btn = document.getElementById('btn-send-otp');
-  if (btn) { btn.disabled = true; btn.innerHTML = '<span>�</span> Enviando...'; }
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span></span> Enviando...'; }
 
   const { error } = await _sb.auth.signInWithOtp({
     email,
@@ -169,6 +174,7 @@ function signInWithGoogle() { sendOTP(); }
 
 //  Logout 
 async function doSignOut() {
+  localStorage.removeItem('respira_mock_user');
   if (_realtimeChannel) {
     _sb.removeChannel(_realtimeChannel);
     _realtimeChannel = null;
