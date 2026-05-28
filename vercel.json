@@ -1,0 +1,13 @@
+{
+  "cleanUrls": true,
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "https://xxmwotnhfhxwhepermlq.supabase.co/functions/v1/dynamic-endpoint/$1"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/respira/$1"
+    }
+  ]
+}
