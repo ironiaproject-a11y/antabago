@@ -2078,10 +2078,10 @@ function updateAIStatus() {
 }
 
 // 
-// �UDIO  Web Audio API (breathing tones)
+// ÁUDIO  Web Audio API (breathing tones - synth pad premium)
 // 
 let audioCtx = null;
-let _osc = null;
+let _osc = null; // Agora pode ser uma lista de osciladores
 let _gain = null;
 let audioEnabled = true;
 
@@ -2089,37 +2089,97 @@ function initAudioEngine() {
   if (!audioEnabled) return;
   try {
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    if (audioCtx.state === 'suspended') audioCtx.resume();
-  } catch(e) { audioEnabled = false; }
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume().then(() => {
+        console.log('AudioContext ativado/resumido no celular!');
+      }).catch(err => {
+        console.warn('Erro ao resumir AudioContext:', err);
+      });
+    }
+  } catch(e) { 
+    console.error('Audio falhou ao inicializar:', e);
+    audioEnabled = false; 
+  }
 }
+
+// Desbloquear áudio em navegadores de celular na primeira interação do usuário
+const unlockAudio = () => {
+  initAudioEngine();
+  document.removeEventListener('click', unlockAudio);
+  document.removeEventListener('touchstart', unlockAudio);
+};
+document.addEventListener('click', unlockAudio);
+document.addEventListener('touchstart', unlockAudio);
 
 function playBreathingTone(phase) {
   if (!audioEnabled || !audioCtx) return;
   stopBreathingTone();
-  const osc = audioCtx.createOscillator();
+
+  // Criar dois osciladores para gerar um som rico (efeito Chorus)
+  const osc1 = audioCtx.createOscillator();
+  const osc2 = audioCtx.createOscillator();
+  const filter = audioCtx.createBiquadFilter();
   const gain = audioCtx.createGain();
   const now = audioCtx.currentTime;
-  osc.type = 'sine';
+
+  // Característica do som: Synth Pad super relaxante, quente e envolvente
+  osc1.type = 'sine';      // Onda fundamental suave
+  osc2.type = 'triangle';  // Onda triangular adiciona harmônicos quentes e ricos
+
+  // Leve desafinação no segundo oscilador cria sensação de espacialidade (efeito 3D/Chorus)
+  osc2.detune.setValueAtTime(8, now); // desafinação de 8 cents
+
+  // Filtro passa-baixa deixa o som ultra suave, eliminando qualquer agudo desconfortável
+  filter.type = 'lowpass';
+  filter.frequency.setValueAtTime(320, now);
+  filter.Q.setValueAtTime(1, now);
+
   gain.gain.setValueAtTime(0, now);
-  if (phase === 0) {      // Inspire: 220 400Hz, fadein
-    osc.frequency.setValueAtTime(220, now);
-    osc.frequency.linearRampToValueAtTime(400, now + 3.8);
-    gain.gain.linearRampToValueAtTime(0.12, now + 0.4);
-  } else if (phase === 1) { // Segure: steady hum 400Hz
-    osc.frequency.setValueAtTime(400, now);
-    gain.gain.linearRampToValueAtTime(0.06, now + 0.3);
-  } else if (phase === 2) { // Expire: 400 220Hz, fadeout
-    osc.frequency.setValueAtTime(400, now);
-    osc.frequency.linearRampToValueAtTime(220, now + 3.8);
+
+  if (phase === 0) { // Inspire: Tom ascendente ultra suave e imersivo (G3 -> C4)
+    osc1.frequency.setValueAtTime(196, now); // Sol3 (G3)
+    osc1.frequency.linearRampToValueAtTime(261.63, now + 3.8); // Dó4 (C4)
+    
+    osc2.frequency.setValueAtTime(197, now);
+    osc2.frequency.linearRampToValueAtTime(262.63, now + 3.8);
+
+    // O filtro se abre levemente ao inspirar, simulando expansão dos pulmões
+    filter.frequency.linearRampToValueAtTime(520, now + 3.8);
+
+    gain.gain.linearRampToValueAtTime(0.18, now + 0.8);
+  } else if (phase === 1) { // Segure: Hum constante, profundo e meditativo
+    osc1.frequency.setValueAtTime(261.63, now);
+    osc2.frequency.setValueAtTime(262.63, now);
+    
+    filter.frequency.setValueAtTime(420, now);
+
     gain.gain.linearRampToValueAtTime(0.10, now + 0.3);
-    gain.gain.linearRampToValueAtTime(0, now + 3.6);
-  } else {                  // Espere: silence
+  } else if (phase === 2) { // Expire: Tom descendente com relaxamento e fadeout (C4 -> G3)
+    osc1.frequency.setValueAtTime(261.63, now);
+    osc1.frequency.linearRampToValueAtTime(196, now + 3.8);
+
+    osc2.frequency.setValueAtTime(262.63, now);
+    osc2.frequency.linearRampToValueAtTime(197, now + 3.8);
+
+    // O filtro fecha e o som fica mais escuro e calmo ao expirar
+    filter.frequency.linearRampToValueAtTime(260, now + 3.8);
+
+    gain.gain.linearRampToValueAtTime(0.14, now + 0.3);
+    gain.gain.linearRampToValueAtTime(0, now + 3.8);
+  } else { // Espere: Silêncio
     gain.gain.setValueAtTime(0, now);
   }
-  osc.connect(gain);
+
+  osc1.connect(filter);
+  osc2.connect(filter);
+  filter.connect(gain);
   gain.connect(audioCtx.destination);
-  osc.start(now);
-  _osc = osc; _gain = gain;
+
+  osc1.start(now);
+  osc2.start(now);
+
+  _osc = [osc1, osc2]; // Salva a lista de osciladores
+  _gain = gain;
 }
 
 function stopBreathingTone() {
