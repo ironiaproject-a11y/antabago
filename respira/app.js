@@ -47,10 +47,19 @@ function hasAI() {
 
 // 
 // INICIALIZAÇÃO
-// 
 document.addEventListener('DOMContentLoaded', () => {
   showScreen('loading');
   initHeroOrb();
+
+  // Registrar Service Worker incondicionalmente para suporte Offline e PWABuilder
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js')
+      .then(() => {
+        console.log('Service Worker registrado com sucesso!');
+      }).catch((err) => {
+        console.error('Erro ao registrar Service Worker:', err);
+      });
+  }
 
   initFirebase(async (user) => {
     if (!user) {
@@ -58,7 +67,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Carrega dados locais imediatamente (r�pido)
+    // Carrega dados locais imediatamente (rápido)
     loadData();
 
     // Carrega dados da nuvem e mescla (pode demorar um pouco)
@@ -88,12 +97,9 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
-    // Service Worker
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js')
-        .then(() => {
-          if (state.notifications && Notification?.permission === 'granted') scheduleNotifications();
-        }).catch(() => {});
+    // Agendar notificações se permissão concedida
+    if ('serviceWorker' in navigator && state.notifications && Notification?.permission === 'granted') {
+      scheduleNotifications();
     }
 
     if (typeof initBuddyFeature === 'function') initBuddyFeature();
